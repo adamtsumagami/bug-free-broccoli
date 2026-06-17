@@ -17,6 +17,10 @@ const config = {
     name: process.env.ACTIVITY_NAME || "Minecraft",
     type: process.env.ACTIVITY_TYPE || "PLAYING",
   },
+  rpc: {
+    appId:         process.env.RPC_APP_ID          || null,
+    rotateMinutes: parseInt(process.env.RPC_ROTATE_MINUTES, 10) || 3,
+  },
 };
 
 // ─── Validasi wajib ──────────────────────────────────────────────────────────

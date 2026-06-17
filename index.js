@@ -9,6 +9,7 @@ const { Client }                = require("discord.js-selfbot-v13");
 const { createLogger }          = require("./src/logger");
 const { joinVC, handleVoiceStateUpdate, cleanup } = require("./src/voice");
 const { handleMessage }         = require("./src/commands");
+const { startRPC, stopRPC }     = require("./src/rpc");
 
 // ─── Init Logger ─────────────────────────────────────────────────────────────
 const log = createLogger(config.logLevel);
@@ -19,6 +20,10 @@ log.info("BOOT", `Log level: ${config.logLevel}`);
 log.info("BOOT", `Owner ID: ${config.ownerId}`);
 log.info("BOOT", `Reconnect delay: ${config.reconnectDelay}ms`);
 log.info("BOOT", `Activity: ${config.activity.type} ${config.activity.name}`);
+if (config.rpc.appId) {
+  log.info("BOOT", `RPC App ID: ${config.rpc.appId}`);
+  log.info("BOOT", `RPC Rotation: every ${config.rpc.rotateMinutes} minutes`);
+}
 if (config.voiceChannelId) {
   log.info("BOOT", `Auto-join VC: ${config.voiceChannelId}`);
 }
@@ -43,13 +48,8 @@ client.once("ready", async () => {
   log.info("READY", `Login sebagai: ${client.user.tag} (${client.user.id})`);
   log.info("READY", `Servers: ${client.guilds.cache.size}`);
 
-  // Set activity
-  try {
-    client.user.setActivity(config.activity.name, { type: config.activity.type });
-    log.info("READY", `Activity di-set: ${config.activity.type} ${config.activity.name}`);
-  } catch (e) {
-    log.warn("READY", `Gagal set activity: ${e.message}`);
-  }
+  // Start VCT Rich Presence (or fallback to basic activity)
+  startRPC(client);
 
   // Auto-join VC jika di-set
   if (config.voiceChannelId) {
@@ -103,7 +103,8 @@ function gracefulShutdown(signal) {
   log.info("SHUTDOWN", `Menerima signal: ${signal}`);
 
   cleanup();
-  log.info("SHUTDOWN", "Voice cleanup selesai.");
+  stopRPC();
+  log.info("SHUTDOWN", "Voice & RPC cleanup selesai.");
 
   client.destroy();
   log.info("SHUTDOWN", "Client destroyed.");

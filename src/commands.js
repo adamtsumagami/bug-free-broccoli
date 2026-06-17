@@ -3,6 +3,7 @@
 const { getLogger }  = require("./logger");
 const { config }     = require("./config");
 const { joinVC, getState } = require("./voice");
+const { TOURNAMENT } = require("./rpc");
 
 const log     = getLogger();
 const startAt = Date.now();
@@ -99,6 +100,8 @@ const COMMANDS = {
         ? voiceState.lastJoinTime.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
         : "—";
 
+      const rpcMode = config.rpc.appId ? "✅ VCT Masters London" : "❌ Disabled (basic activity)";
+
       const lines = [
         `📊 **Status Bot AFK**`,
         ``,
@@ -108,7 +111,12 @@ const COMMANDS = {
         `📅 Last Join: \`${lastJoin}\``,
         `📋 Log Level: \`${config.logLevel}\``,
         `👥 Whitelist: ${[...allowed].map(i => `\`${i}\``).join(", ")}`,
-        `🎮 Activity: \`${config.activity.type} ${config.activity.name}\``,
+        ``,
+        `🏆 **RPC:** ${rpcMode}`,
+        `🎮 Tournament: \`${TOURNAMENT.shortName}\``,
+        `📍 Venue: \`${TOURNAMENT.venue}, ${TOURNAMENT.city}\``,
+        `📆 Dates: \`${TOURNAMENT.dates}\``,
+        `💰 Prize: \`${TOURNAMENT.prizePool}\``,
       ];
 
       msg.channel.send(lines.join("\n"));
