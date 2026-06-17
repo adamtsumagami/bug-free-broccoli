@@ -45,53 +45,57 @@ const TEAMS = [
   { name: "Global Esports", short: "GE",  region: "Pacific",   seed: "#3", logo: "https://liquipedia.net/commons/images/thumb/6/6e/Global_Esports_2024_allmode.png/600px-Global_Esports_2024_allmode.png" },
 ];
 
-// Match schedule data — realistic matchups based on tournament format
+// Match schedule — real data from Liquipedia, semua waktu WIB (UTC+7)
+// Format waktu: "YYYY-MM-DDTHH:MM" dalam WIB
+// Score: null = belum main, [a, b] = sudah selesai
 const SCHEDULE = [
-  // Swiss Stage — Round 1 (June 6-7)
-  { team1: "LEV", team2: "DRG", round: "Swiss Round 1", date: "2026-06-06", bestOf: 3 },
-  { team1: "VIT", team2: "NRG", round: "Swiss Round 1", date: "2026-06-06", bestOf: 3 },
-  { team1: "XLG", team2: "FUT", round: "Swiss Round 1", date: "2026-06-07", bestOf: 3 },
-  { team1: "FS",  team2: "GE",  round: "Swiss Round 1", date: "2026-06-07", bestOf: 3 },
+  // ─── Swiss Stage — Round 1 ───────────────────────────────────────────
+  { team1: "XLG", team2: "NRG", round: "Swiss Round 1", time: "2026-06-06T21:00", bestOf: 3, score: [0, 2] },
+  { team1: "VIT", team2: "DRG", round: "Swiss Round 1", time: "2026-06-06T23:30", bestOf: 3, score: [2, 0] },
+  { team1: "FS",  team2: "FUT", round: "Swiss Round 1", time: "2026-06-07T21:00", bestOf: 3, score: [0, 2] },
+  { team1: "LEV", team2: "GE",  round: "Swiss Round 1", time: "2026-06-07T23:00", bestOf: 3, score: [2, 1] },
 
-  // Swiss Stage — Round 2 (June 8-9)
-  { team1: "LEV", team2: "VIT", round: "Swiss Round 2 (1-0)", date: "2026-06-08", bestOf: 3 },
-  { team1: "XLG", team2: "FS",  round: "Swiss Round 2 (1-0)", date: "2026-06-08", bestOf: 3 },
-  { team1: "DRG", team2: "NRG", round: "Swiss Round 2 (0-1)", date: "2026-06-09", bestOf: 3 },
-  { team1: "FUT", team2: "GE",  round: "Swiss Round 2 (0-1)", date: "2026-06-09", bestOf: 3 },
+  // ─── Swiss Stage — Round 2 High (1-0) ────────────────────────────────
+  { team1: "VIT", team2: "FUT", round: "Swiss Round 2 (1-0)", time: "2026-06-08T21:00", bestOf: 3, score: [2, 1] },
+  { team1: "NRG", team2: "LEV", round: "Swiss Round 2 (1-0)", time: "2026-06-09T00:10", bestOf: 3, score: [1, 2] },
 
-  // Swiss Stage — Round 3 (June 10)
-  { team1: "VIT", team2: "XLG", round: "Swiss Round 3 (1-1)", date: "2026-06-10", bestOf: 3 },
-  { team1: "FUT", team2: "FS",  round: "Swiss Round 3 (1-1)", date: "2026-06-10", bestOf: 3 },
+  // ─── Swiss Stage — Round 2 Low (0-1) ─────────────────────────────────
+  { team1: "DRG", team2: "XLG", round: "Swiss Round 2 (0-1)", time: "2026-06-09T21:00", bestOf: 3, score: [1, 2] },
+  { team1: "GE",  team2: "FS",  round: "Swiss Round 2 (0-1)", time: "2026-06-10T00:20", bestOf: 3, score: [2, 1] },
 
-  // Playoffs — Upper Bracket QF (June 12-13)
-  { team1: "G2",  team2: "LEV", round: "Upper Quarterfinal", date: "2026-06-12", bestOf: 3 },
-  { team1: "EDG", team2: "XLG", round: "Upper Quarterfinal", date: "2026-06-12", bestOf: 3 },
-  { team1: "TH",  team2: "VIT", round: "Upper Quarterfinal", date: "2026-06-13", bestOf: 3 },
-  { team1: "PRX", team2: "FUT", round: "Upper Quarterfinal", date: "2026-06-13", bestOf: 3 },
+  // ─── Swiss Stage — Round 3 Mid (1-1) ─────────────────────────────────
+  { team1: "FUT", team2: "NRG", round: "Swiss Round 3 (1-1)", time: "2026-06-10T21:00", bestOf: 3, score: [2, 1] },
+  { team1: "XLG", team2: "GE",  round: "Swiss Round 3 (1-1)", time: "2026-06-11T00:10", bestOf: 3, score: [2, 1] },
 
-  // Playoffs — Lower Bracket R1 (June 14)
-  { team1: "LEV", team2: "XLG", round: "Lower Round 1",     date: "2026-06-14", bestOf: 3 },
-  { team1: "VIT", team2: "FUT", round: "Lower Round 1",     date: "2026-06-14", bestOf: 3 },
+  // ─── Playoffs — Upper Bracket Quarterfinals ──────────────────────────
+  { team1: "PRX", team2: "LEV", round: "Upper Quarterfinal", time: "2026-06-12T21:00", bestOf: 3, score: [2, 0] },
+  { team1: "TH",  team2: "VIT", round: "Upper Quarterfinal", time: "2026-06-12T23:30", bestOf: 3, score: [0, 2] },
+  { team1: "G2",  team2: "XLG", round: "Upper Quarterfinal", time: "2026-06-13T21:00", bestOf: 3, score: [1, 2] },
+  { team1: "EDG", team2: "FUT", round: "Upper Quarterfinal", time: "2026-06-13T23:30", bestOf: 3, score: [2, 1] },
 
-  // Playoffs — Upper Bracket SF (June 15)
-  { team1: "G2",  team2: "EDG", round: "Upper Semifinal",   date: "2026-06-15", bestOf: 3 },
-  { team1: "TH",  team2: "PRX", round: "Upper Semifinal",   date: "2026-06-15", bestOf: 3 },
+  // ─── Playoffs — Lower Bracket Round 1 ────────────────────────────────
+  { team1: "G2",  team2: "FUT", round: "Lower Round 1",      time: "2026-06-14T21:00", bestOf: 3, score: [0, 2] },
+  { team1: "LEV", team2: "TH",  round: "Lower Round 1",      time: "2026-06-14T23:30", bestOf: 3, score: [2, 1] },
 
-  // Playoffs — Lower Bracket QF (June 16)
-  { team1: "LEV", team2: "EDG", round: "Lower Quarterfinal", date: "2026-06-16", bestOf: 3 },
-  { team1: "PRX", team2: "VIT", round: "Lower Quarterfinal", date: "2026-06-16", bestOf: 3 },
+  // ─── Playoffs — Upper Bracket Semifinals ─────────────────────────────
+  { team1: "PRX", team2: "VIT", round: "Upper Semifinal",    time: "2026-06-15T21:00", bestOf: 3, score: [2, 1] },
+  { team1: "XLG", team2: "EDG", round: "Upper Semifinal",    time: "2026-06-15T23:30", bestOf: 3, score: [1, 2] },
 
-  // Playoffs — Upper Bracket Final (June 17)
-  { team1: "G2",  team2: "TH",  round: "Upper Final",       date: "2026-06-17", bestOf: 3 },
+  // ─── Playoffs — Lower Bracket Quarterfinals ──────────────────────────
+  { team1: "FUT", team2: "VIT", round: "Lower Quarterfinal", time: "2026-06-16T21:00", bestOf: 3, score: [0, 2] },
+  { team1: "XLG", team2: "LEV", round: "Lower Quarterfinal", time: "2026-06-16T23:30", bestOf: 3, score: [0, 2] },
 
-  // Playoffs — Lower Bracket SF (June 18)
-  { team1: "LEV", team2: "PRX", round: "Lower Semifinal",   date: "2026-06-18", bestOf: 3 },
+  // ─── Playoffs — Upper Bracket Final ──────────────────────────────────
+  { team1: "EDG", team2: "PRX", round: "Upper Final",        time: "2026-06-19T21:00", bestOf: 3, score: null },
 
-  // Playoffs — Lower Bracket Final (June 19)
-  { team1: "PRX", team2: "TH",  round: "Lower Final",       date: "2026-06-19", bestOf: 5 },
+  // ─── Playoffs — Lower Bracket Semifinal ──────────────────────────────
+  { team1: "VIT", team2: "LEV", round: "Lower Semifinal",    time: "2026-06-19T23:30", bestOf: 3, score: null },
 
-  // Playoffs — Grand Final (June 21)
-  { team1: "G2",  team2: "PRX", round: "Grand Final",       date: "2026-06-21", bestOf: 5 },
+  // ─── Playoffs — Lower Bracket Final ──────────────────────────────────
+  { team1: "TBD", team2: "TBD", round: "Lower Final",        time: "2026-06-20T21:00", bestOf: 5, score: null },
+
+  // ─── Playoffs — Grand Final ──────────────────────────────────────────
+  { team1: "TBD", team2: "TBD", round: "Grand Final",        time: "2026-06-21T21:00", bestOf: 5, score: null },
 ];
 
 // Maps in the pool
@@ -99,7 +103,16 @@ const MAPS = ["Ascent", "Breeze", "Split", "Fracture", "Pearl", "Haven", "Lotus"
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
 
+const TBD_TEAM = {
+  name: "To Be Determined",
+  short: "TBD",
+  region: "N/A",
+  seed: "N/A",
+  logo: "https://liquipedia.net/commons/images/thumb/f/fc/Valorant_darkmode_icon.png/600px-Valorant_darkmode_icon.png"
+};
+
 function getTeamByShort(short) {
+  if (short === "TBD") return TBD_TEAM;
   return TEAMS.find((t) => t.short === short);
 }
 
@@ -108,33 +121,60 @@ function getRandomMap() {
 }
 
 /**
- * Determine which match to display based on tournament dates.
- * If today is during the tournament, show today's match or next upcoming.
- * If before or after, rotate through all matches.
+ * Konversi waktu WIB (UTC+7) string ke Date object
+ * Format input: "YYYY-MM-DDTHH:MM"
+ */
+function wibToDate(wibTimeStr) {
+  return new Date(wibTimeStr + ":00+07:00");
+}
+
+/**
+ * Format Date ke string WIB "DD/MM HH:MM WIB"
+ */
+function formatWIB(date) {
+  return date.toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }) + " WIB";
+}
+
+/**
+ * Tentukan match mana yang ditampilkan berdasarkan waktu saat ini (WIB).
+ * - Jika ada match yang sedang live (±3 jam dari jadwal), tampilkan itu
+ * - Jika ada match upcoming, tampilkan match berikutnya
+ * - Jika sudah selesai semua, rotasi showcase
  */
 function getCurrentMatch() {
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const now = Date.now();
+  const MATCH_DURATION = 3 * 60 * 60 * 1000; // 3 jam estimasi durasi match
 
-  // Find today's match
-  const todayMatches = SCHEDULE.filter((m) => m.date === todayStr);
-  if (todayMatches.length > 0) {
-    // Rotate through today's matches every few minutes
-    const minuteOfDay = now.getHours() * 60 + now.getMinutes();
-    const idx = Math.floor(minuteOfDay / config.rpc.rotateMinutes) % todayMatches.length;
-    return { match: todayMatches[idx], status: "live" };
+  // Cari match yang sedang live (dalam rentang jadwal - sekarang < 3 jam)
+  for (const match of SCHEDULE) {
+    if (match.team1 === "TBD") continue;
+    const matchTime = wibToDate(match.time).getTime();
+    if (now >= matchTime && now < matchTime + MATCH_DURATION) {
+      return { match, status: "live" };
+    }
   }
 
-  // Find next upcoming match
-  const upcoming = SCHEDULE.filter((m) => m.date > todayStr);
-  if (upcoming.length > 0) {
-    return { match: upcoming[0], status: "upcoming" };
+  // Cari match upcoming berikutnya
+  for (const match of SCHEDULE) {
+    const matchTime = wibToDate(match.time).getTime();
+    if (now < matchTime) {
+      // Jika TBD, masih tampilkan sebagai upcoming
+      return { match, status: "upcoming" };
+    }
   }
 
-  // Tournament ended or before — rotate through all
-  const totalMinutes = Math.floor(Date.now() / (1000 * 60));
-  const idx = Math.floor(totalMinutes / config.rpc.rotateMinutes) % SCHEDULE.length;
-  return { match: SCHEDULE[idx], status: "showcase" };
+  // Semua match sudah lewat — rotasi showcase (hanya match dengan tim yang diketahui)
+  const knownMatches = SCHEDULE.filter((m) => m.team1 !== "TBD");
+  const totalMinutes = Math.floor(now / (1000 * 60));
+  const idx = Math.floor(totalMinutes / config.rpc.rotateMinutes) % knownMatches.length;
+  return { match: knownMatches[idx], status: "showcase" };
 }
 
 // ─── Cached External Assets ──────────────────────────────────────────────────
@@ -190,12 +230,13 @@ async function updateRPC(client) {
       case "upcoming":
         name    = `📅 Next: ${team1.short} vs ${team2.short}`;
         details = `📅 ${team1.name} vs ${team2.name}`;
-        state   = `${match.round} • ${match.date} • BO${match.bestOf}`;
+        state   = `${match.round} • ${formatWIB(wibToDate(match.time))} • BO${match.bestOf}`;
         break;
       default: // showcase
         name    = `⚔️ ${team1.short} vs ${team2.short}`;
         details = `⚔️ ${team1.name} vs ${team2.name}`;
-        state   = `${match.round} • BO${match.bestOf}`;
+        const scoreStr = match.score ? `[${match.score[0]}-${match.score[1]}]` : "TBD";
+        state   = `${match.round} • BO${match.bestOf} • ${scoreStr}`;
     }
 
     // Get external image assets
@@ -207,8 +248,11 @@ async function updateRPC(client) {
       .setType("WATCHING")
       .setName(name)
       .setDetails(details)
-      .setState(state)
-      .setStartTimestamp(new Date(`${match.date}T12:00:00Z`).getTime());
+      .setState(state);
+
+    if (status === "live" || status === "upcoming") {
+      rpc.setStartTimestamp(wibToDate(match.time).getTime());
+    }
 
     // Set images if available
     if (largeImg) {
