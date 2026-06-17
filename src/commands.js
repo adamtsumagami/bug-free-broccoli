@@ -2,7 +2,7 @@
 
 const { getLogger }  = require("./logger");
 const { config }     = require("./config");
-const { joinVC, getState } = require("./voice");
+const { joinVC, getState, setMute, setDeafen } = require("./voice");
 const { TOURNAMENT } = require("./rpc");
 
 const log     = getLogger();
@@ -106,6 +106,8 @@ const COMMANDS = {
         `📊 **Status Bot AFK**`,
         ``,
         `🔊 Voice: ${inVoice ? `✅ Channel \`${voiceState.currentVC}\`` : "❌ Tidak aktif"}`,
+        `🎙️ Mute: \`${voiceState.selfMute ? "Muted 🔇" : "Unmuted 🔊"}\``,
+        `🎧 Deafen: \`${voiceState.selfDeaf ? "Deafened 🔇" : "Undeafened 🔊"}\``,
         `⏱️ Uptime: \`${formatUptime()}\``,
         `🔄 Reconnects: \`${voiceState.reconnCount}\``,
         `📅 Last Join: \`${lastJoin}\``,
@@ -120,6 +122,46 @@ const COMMANDS = {
       ];
 
       msg.channel.send(lines.join("\n"));
+    },
+  },
+
+  "!mute": {
+    desc: "Mute bot voice",
+    usage: "!mute",
+    ownerOnly: false,
+    handler: async (msg, _args, client) => {
+      await setMute(client, true);
+      msg.channel.send("🔇 Bot sekarang **muted**.");
+    },
+  },
+
+  "!unmute": {
+    desc: "Unmute bot voice",
+    usage: "!unmute",
+    ownerOnly: false,
+    handler: async (msg, _args, client) => {
+      await setMute(client, false);
+      msg.channel.send("🔊 Bot sekarang **unmuted**.");
+    },
+  },
+
+  "!deafen": {
+    desc: "Deafen bot voice",
+    usage: "!deafen",
+    ownerOnly: false,
+    handler: async (msg, _args, client) => {
+      await setDeafen(client, true);
+      msg.channel.send("🔇 Bot sekarang **deafened**.");
+    },
+  },
+
+  "!undeafen": {
+    desc: "Undeafen bot voice",
+    usage: "!undeafen",
+    ownerOnly: false,
+    handler: async (msg, _args, client) => {
+      await setDeafen(client, false);
+      msg.channel.send("🔊 Bot sekarang **undeafened**.");
     },
   },
 

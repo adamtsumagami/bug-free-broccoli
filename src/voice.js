@@ -12,16 +12,34 @@ let currentVC    = config.voiceChannelId;
 let reconnTimer  = null;
 let reconnCount  = 0;
 let lastJoinTime = null;
+let selfMute     = config.voiceSelfMute;
+let selfDeaf     = config.voiceSelfDeaf;
 
-// ─── Getters ─────────────────────────────────────────────────────────────────
+// ─── Getters & Setters ─────────────────────────────────────────────────────────
 
 function getState() {
   return {
     currentVC,
     reconnCount,
     lastJoinTime,
+    selfMute,
+    selfDeaf,
     isReconnecting: reconnTimer !== null,
   };
+}
+
+async function setMute(client, mute) {
+  selfMute = mute;
+  if (currentVC) {
+    await joinVC(client, currentVC);
+  }
+}
+
+async function setDeafen(client, deafen) {
+  selfDeaf = deafen;
+  if (currentVC) {
+    await joinVC(client, currentVC);
+  }
 }
 
 // ─── Join Voice Channel ──────────────────────────────────────────────────────
@@ -44,14 +62,14 @@ async function joinVC(client, channelId) {
       channelId: ch.id,
       guildId: ch.guild.id,
       adapterCreator: ch.guild.voiceAdapterCreator,
-      selfMute: true,
-      selfDeaf: true,
+      selfMute,
+      selfDeaf,
     });
 
     currentVC    = channelId;
     lastJoinTime = new Date();
 
-    log.info("VOICE", `Joined #${ch.name} di server "${ch.guild.name}" (${ch.id})`);
+    log.info("VOICE", `Joined #${ch.name} di server "${ch.guild.name}" (${ch.id}) [Mute: ${selfMute}, Deaf: ${selfDeaf}]`);
     return `✅ Join: **#${ch.name}** (${ch.guild.name})`;
 
   } catch (e) {
@@ -116,5 +134,7 @@ module.exports = {
   scheduleReconnect,
   handleVoiceStateUpdate,
   getState,
+  setMute,
+  setDeafen,
   cleanup,
 };

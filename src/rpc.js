@@ -22,8 +22,8 @@ const TOURNAMENT = {
 
 // Image URLs — VCT & team logos from Liquipedia
 const IMAGES = {
-  vctLogo:  "https://liquipedia.net/commons/images/d/d5/Valorant_Champions_Tour_Masters_London_2026_lightmode.png",
-  valorant: "https://liquipedia.net/commons/images/thumb/f/fc/Valorant_darkmode_icon.png/600px-Valorant_darkmode_icon.png",
+  vctLogo:  "https://liquipedia.net/commons/images/d/d9/Valorant_Champions_Tour_Masters_London_2026_darkmode.png",
+  valorant: "https://liquipedia.net/commons/images/f/f4/Valorant.png",
 };
 
 // 12 teams at Masters London 2026

@@ -11,6 +11,8 @@ const config = {
   token:          process.env.DISCORD_TOKEN       || null,
   ownerId:        process.env.OWNER_ID            || null,
   voiceChannelId: process.env.VOICE_CHANNEL_ID    || null,
+  voiceSelfMute:  process.env.VOICE_SELF_MUTE !== "false",
+  voiceSelfDeaf:  process.env.VOICE_SELF_DEAF !== "false",
   reconnectDelay: parseInt(process.env.RECONNECT_DELAY_MS, 10) || 5000,
   logLevel:       (process.env.LOG_LEVEL || "INFO").toUpperCase(),
   activity: {
