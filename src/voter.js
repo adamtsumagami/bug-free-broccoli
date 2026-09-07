@@ -132,9 +132,19 @@ async function vote() {
     log.info("VOTER", `Halaman saat ini: ${currentUrl}`);
 
     const bodyText = await page.evaluate(() => document.body.innerText);
+    log.info("VOTER", `Teks halaman (snippet): ${bodyText.replace(/\s+/g, " ").trim().substring(0, 200)}`);
 
     // Cek apakah halaman meminta login
     if (currentUrl.includes("login") || bodyText.includes("Log in")) {
+      // Simpan screenshot debug
+      try {
+        const fs = require("fs");
+        const path = require("path");
+        const debugDir = path.resolve(__dirname, "..", "logs");
+        if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+        await page.screenshot({ path: path.join(debugDir, "voter-not-logged-in.png"), fullPage: true });
+        log.info("VOTER", `Screenshot disimpan ke logs/voter-not-logged-in.png`);
+      } catch {}
       log.warn("VOTER", "Belum login ke top.gg — token inject mungkin gagal. Skip vote.");
       return;
     }
@@ -166,6 +176,16 @@ async function vote() {
     }
 
     if (!voted) {
+      // Ambil screenshot debug dan simpan ke file agar bisa diinspeksi
+      try {
+        const fs = require("fs");
+        const path = require("path");
+        const debugDir = path.resolve(__dirname, "..", "logs");
+        if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+        await page.screenshot({ path: path.join(debugDir, "voter-failed.png"), fullPage: true });
+        log.info("VOTER", `Screenshot halaman saat ini disimpan ke logs/voter-failed.png`);
+      } catch {}
+
       // Cek apakah halaman menampilkan pesan "sudah vote"
       const alreadyVoted = await page.evaluate(() => {
         const text = document.body.innerText;
@@ -179,7 +199,15 @@ async function vote() {
       if (alreadyVoted) {
         log.info("VOTER", "Sudah vote dalam 12 jam terakhir — skip.");
       } else {
-        log.warn("VOTER", "Tombol vote tidak ditemukan. Halaman mungkin berubah atau perlu captcha.");
+        // Log snapshot dari halaman agar ketahuan masalah aslinya
+        const snapshot = await page.evaluate(() => {
+          return {
+            title: document.title,
+            url: window.location.href,
+            textSnippet: document.body.innerText.replace(/\s+/g, " ").trim().substring(0, 300),
+          };
+        });
+        log.warn("VOTER", `Tombol vote tidak ditemukan. Detail halaman: ${JSON.stringify(snapshot)}`);
       }
       return;
     }
