@@ -53,11 +53,16 @@ async function vote() {
   const page = await browser.newPage();
   page.setDefaultNavigationTimeout(60_000);
 
+  // Set realistic User-Agent
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  );
+
   // Blokir resource berat yang tidak dibutuhkan untuk voting
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
-    if (["image", "stylesheet", "font", "media"].includes(type)) {
+    if (["image", "font", "media"].includes(type)) {
       req.abort();
     } else {
       req.continue();
@@ -67,7 +72,7 @@ async function vote() {
   try {
     // ── Step 1: Buka Discord login dengan redirect ke top.gg OAuth ─────────
     log.info("VOTER", "Membuka halaman Discord login...");
-    await page.goto(DISCORD_LOGIN_URL, { waitUntil: "domcontentloaded" });
+    await page.goto(DISCORD_LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await sleep(2000);
 
     // ── Step 2: Inject token Discord ke localStorage ───────────────────────
@@ -75,51 +80,63 @@ async function vote() {
     await page.setBypassCSP(true);
 
     await page.evaluate((token) => {
-      function loginWithToken(t) {
-        // Inject via iframe agar bisa menulis ke localStorage Discord
+      try {
+        localStorage.setItem("token", `"${token}"`);
+      } catch {}
+      try {
         const iframe = document.createElement("iframe");
         document.body.appendChild(iframe);
-        iframe.contentWindow.localStorage.token = `"${t}"`;
-      }
-      loginWithToken(token);
-      setTimeout(() => location.reload(), 2000);
+        iframe.contentWindow.localStorage.setItem("token", `"${token}"`);
+      } catch {}
     }, config.token);
 
-    // ── Step 3: Tunggu halaman reload & authorize top.gg ──────────────────
-    log.info("VOTER", "Menunggu halaman authorize Discord OAuth...");
-    await sleep(5000);
+    await sleep(1000);
+    log.info("VOTER", "Reload halaman login dengan token terpasang...");
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 30_000 });
+    await sleep(4000);
 
-    // Klik tombol Authorize jika muncul
+    // ── Step 3: Authorize jika diminta ────────────────────────────────────
     try {
-      await page.waitForSelector(
-        "button[type='submit']",
-        { timeout: 15_000 }
+      const authBtn = await page.waitForSelector(
+        "button[type='submit'], .button-f2h6uQ, button.lookFilled-yCfaCM",
+        { timeout: 8_000 }
       );
-      await page.click("button[type='submit']");
-      log.info("VOTER", "Tombol Authorize diklik.");
+      if (authBtn) {
+        await authBtn.click();
+        log.info("VOTER", "Tombol Authorize diklik.");
+        await sleep(4000);
+      }
     } catch {
-      log.debug("VOTER", "Tidak ada tombol Authorize — mungkin sudah authorized.");
+      log.debug("VOTER", "Tidak ada tombol Authorize atau sudah otomatis authorize.");
     }
 
-    // ── Step 4: Tunggu redirect ke top.gg ────────────────────────────────
-    log.info("VOTER", "Menunggu redirect ke top.gg...");
-    await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30_000 });
-
-    // ── Step 5: Navigate ke halaman vote TempVoice ────────────────────────
+    // ── Step 4: Menuju halaman vote TempVoice ──────────────────────────────
     log.info("VOTER", `Menuju halaman vote: ${BOT_VOTE_URL}`);
-    await page.goto(BOT_VOTE_URL, { waitUntil: "domcontentloaded" });
-    await sleep(3000);
+    await page.goto(BOT_VOTE_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await sleep(5000);
 
-    // ── Step 6: Dismiss ad popup jika ada ────────────────────────────────
+    // ── Step 5: Dismiss ad popup jika ada ────────────────────────────────
     try {
       const adClose = await page.$("[id='modal-root'] a:nth-child(2)");
       if (adClose) {
         await adClose.click();
         log.debug("VOTER", "Ad popup ditutup.");
-        await sleep(1000);
+        await sleep(2000);
       }
     } catch {
       // tidak ada popup
+    }
+
+    // ── Step 6: Cek apakah sudah login di top.gg ─────────────────────────
+    const currentUrl = page.url();
+    log.info("VOTER", `Halaman saat ini: ${currentUrl}`);
+
+    const bodyText = await page.evaluate(() => document.body.innerText);
+
+    // Cek apakah halaman meminta login
+    if (currentUrl.includes("login") || bodyText.includes("Log in")) {
+      log.warn("VOTER", "Belum login ke top.gg — token inject mungkin gagal. Skip vote.");
+      return;
     }
 
     // ── Step 7: Tunggu & klik tombol Vote ────────────────────────────────
