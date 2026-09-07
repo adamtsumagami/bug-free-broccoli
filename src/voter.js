@@ -24,6 +24,79 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Menutup popup GDPR / Cookie Consent dan popup iklan
+ */
+async function dismissPopups(page) {
+  // 1. Cookie Consent / GDPR banner (Quantcast, Didomi, OneTrust, Google FC)
+  try {
+    const consentClicked = await page.evaluate(() => {
+      // Cari tombol consent berdasarkan teks umum
+      const consentTexts = ["consent", "accept all", "accept", "agree", "i agree", "setujui"];
+      const buttons = Array.from(document.querySelectorAll("button, a"));
+      for (const btn of buttons) {
+        const text = (btn.innerText || btn.textContent || "").trim().toLowerCase();
+        if (consentTexts.some((c) => text === c || text.startsWith(c))) {
+          btn.click();
+          return true;
+        }
+      }
+      // Selector populer CMP
+      const cmpSelector =
+        "button.fc-cta-consent, button#onetrust-accept-btn-handler, button[aria-label='Consent'], button.fc-primary-button";
+      const el = document.querySelector(cmpSelector);
+      if (el) {
+        el.click();
+        return true;
+      }
+      return false;
+    });
+
+    if (consentClicked) {
+      log.info("VOTER", "Banner Cookie/GDPR Consent disetujui & ditutup.");
+      await sleep(1500);
+    }
+  } catch {}
+
+  // 2. Ad modal top.gg ("modal-root")
+  try {
+    const adClosed = await page.evaluate(() => {
+      const adBtn =
+        document.querySelector("#modal-root a:nth-child(2)") ||
+        document.querySelector("#modal-root button") ||
+        document.querySelector(".css-122cpje");
+      if (adBtn) {
+        adBtn.click();
+        return true;
+      }
+      return false;
+    });
+
+    if (adClosed) {
+      log.debug("VOTER", "Modal iklan top.gg ditutup.");
+      await sleep(1000);
+    }
+  } catch {}
+}
+
+/**
+ * Mencari dan mengklik tombol berdasarkan teks di dalamnya
+ */
+async function clickButtonWithText(page, targetTexts) {
+  return await page.evaluate((targets) => {
+    const elements = Array.from(document.querySelectorAll("button, a[role='button'], div[role='button']"));
+    for (const el of elements) {
+      const text = (el.innerText || el.textContent || "").trim().toLowerCase();
+      if (targets.some((t) => text === t.toLowerCase() || text.includes(t.toLowerCase()))) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.click();
+        return { clicked: true, text };
+      }
+    }
+    return { clicked: false };
+  }, targetTexts);
+}
+
 // ─── Vote Logic ───────────────────────────────────────────────────────────────
 
 async function vote() {
@@ -71,159 +144,179 @@ async function vote() {
 
   try {
     // ── Step 1: Buka Discord login dengan redirect ke top.gg OAuth ─────────
-    log.info("VOTER", "Membuka halaman Discord login...");
+    log.info("VOTER", "Membuka halaman Discord OAuth...");
     await page.goto(DISCORD_LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await sleep(2000);
 
-    // ── Step 2: Inject token Discord ke localStorage ───────────────────────
+    // ── Step 2: Inject token Discord ke localStorage secara agresif ─────────
     log.info("VOTER", "Menginjeksi token Discord...");
     await page.setBypassCSP(true);
 
     await page.evaluate((token) => {
-      try {
-        localStorage.setItem("token", `"${token}"`);
-      } catch {}
-      try {
-        const iframe = document.createElement("iframe");
-        document.body.appendChild(iframe);
-        iframe.contentWindow.localStorage.setItem("token", `"${token}"`);
-      } catch {}
+      const interval = setInterval(() => {
+        try {
+          const iframe = document.createElement("iframe");
+          document.body.appendChild(iframe);
+          iframe.contentWindow.localStorage.token = `"${token}"`;
+        } catch {}
+        try {
+          localStorage.setItem("token", `"${token}"`);
+        } catch {}
+      }, 50);
+
+      setTimeout(() => {
+        clearInterval(interval);
+        location.reload();
+      }, 2500);
     }, config.token);
 
-    await sleep(1000);
-    log.info("VOTER", "Reload halaman login dengan token terpasang...");
-    await page.reload({ waitUntil: "domcontentloaded", timeout: 30_000 });
-    await sleep(4000);
+    // Tunggu proses reload Discord selesai
+    log.info("VOTER", "Menunggu proses reload Discord...");
+    await sleep(6000);
 
-    // ── Step 3: Authorize jika diminta ────────────────────────────────────
+    // ── Step 3: Klik tombol Authorize Discord jika muncul ─────────────────
+    log.info("VOTER", "Mengecek tombol Authorize Discord...");
     try {
-      const authBtn = await page.waitForSelector(
-        "button[type='submit'], .button-f2h6uQ, button.lookFilled-yCfaCM",
-        { timeout: 8_000 }
-      );
-      if (authBtn) {
-        await authBtn.click();
-        log.info("VOTER", "Tombol Authorize diklik.");
-        await sleep(4000);
+      const authResult = await clickButtonWithText(page, ["authorize", "otorisasikan"]);
+      if (authResult.clicked) {
+        log.info("VOTER", `Tombol "${authResult.text}" diklik.`);
+        await sleep(5000);
+      } else {
+        // Coba dengan selector CSS tombol submit
+        const authBtn = await page.$(
+          "button[type='submit'], .button-f2h6uQ, button.lookFilled-yCfaCM"
+        );
+        if (authBtn) {
+          await authBtn.click();
+          log.info("VOTER", "Tombol Authorize (via CSS selector) diklik.");
+          await sleep(5000);
+        }
       }
-    } catch {
-      log.debug("VOTER", "Tidak ada tombol Authorize atau sudah otomatis authorize.");
+    } catch (e) {
+      log.debug("VOTER", `Tidak ada tombol authorize atau error: ${e.message}`);
+    }
+
+    // Tunggu sebentar jika sedang redirect ke top.gg
+    for (let i = 0; i < 10; i++) {
+      if (page.url().includes("top.gg")) {
+        log.info("VOTER", "Berhasil redirect ke top.gg!");
+        break;
+      }
+      await sleep(1000);
     }
 
     // ── Step 4: Menuju halaman vote TempVoice ──────────────────────────────
     log.info("VOTER", `Menuju halaman vote: ${BOT_VOTE_URL}`);
     await page.goto(BOT_VOTE_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await sleep(5000);
+    await sleep(4000);
 
-    // ── Step 5: Dismiss ad popup jika ada ────────────────────────────────
-    try {
-      const adClose = await page.$("[id='modal-root'] a:nth-child(2)");
-      if (adClose) {
-        await adClose.click();
-        log.debug("VOTER", "Ad popup ditutup.");
-        await sleep(2000);
+    // ── Step 5: Tutup banner Cookie Consent / GDPR dan Iklan ───────────────
+    await dismissPopups(page);
+
+    // ── Step 6: Cek apakah masih diminta login di top.gg ───────────────────
+    let pageText = await page.evaluate(() => document.body.innerText || "");
+    if (pageText.includes("You must be logged in") || pageText.includes("Login to vote")) {
+      log.info("VOTER", "Mendeteksi tombol Login di top.gg — mencoba klik Login...");
+      const loginClick = await clickButtonWithText(page, ["login", "log in"]);
+      if (loginClick.clicked) {
+        log.info("VOTER", "Tombol Login diklik, menunggu redirect Discord OAuth...");
+        await sleep(5000);
+
+        // Authorize lagi jika diminta
+        await clickButtonWithText(page, ["authorize", "otorisasikan"]);
+        await sleep(5000);
+
+        // Kembali ke halaman vote jika belum otomatis
+        if (!page.url().includes("/vote")) {
+          await page.goto(BOT_VOTE_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
+          await sleep(4000);
+        }
+        await dismissPopups(page);
       }
-    } catch {
-      // tidak ada popup
     }
 
-    // ── Step 6: Cek apakah sudah login di top.gg ─────────────────────────
-    const currentUrl = page.url();
-    log.info("VOTER", `Halaman saat ini: ${currentUrl}`);
+    // ── Step 7: Cari dan klik tombol Vote ──────────────────────────────────
+    log.info("VOTER", "Mencari tombol Vote...");
+    await dismissPopups(page);
 
-    const bodyText = await page.evaluate(() => document.body.innerText);
-    log.info("VOTER", `Teks halaman (snippet): ${bodyText.replace(/\s+/g, " ").trim().substring(0, 200)}`);
-
-    // Cek apakah halaman meminta login
-    if (currentUrl.includes("login") || bodyText.includes("Log in")) {
-      // Simpan screenshot debug
-      try {
-        const fs = require("fs");
-        const path = require("path");
-        const debugDir = path.resolve(__dirname, "..", "logs");
-        if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
-        await page.screenshot({ path: path.join(debugDir, "voter-not-logged-in.png"), fullPage: true });
-        log.info("VOTER", `Screenshot disimpan ke logs/voter-not-logged-in.png`);
-      } catch {}
-      log.warn("VOTER", "Belum login ke top.gg — token inject mungkin gagal. Skip vote.");
+    // Cek apakah sudah pernah vote sebelum mencoba klik
+    pageText = await page.evaluate(() => document.body.innerText || "");
+    if (
+      pageText.includes("already voted") ||
+      pageText.includes("come back in") ||
+      pageText.includes("Come back later") ||
+      pageText.includes("You have already voted")
+    ) {
+      log.info("VOTER", "ℹ️ Sudah vote dalam 12 jam terakhir — skip.");
       return;
     }
 
-    // ── Step 7: Tunggu & klik tombol Vote ────────────────────────────────
-    log.info("VOTER", "Mencari tombol Vote...");
-
-    // top.gg punya dua varian tombol vote (bergantung pada render)
-    const voteButtonSelectors = [
-      "#vote-button-container button",
-      "button[data-testid='vote-button']",
-      "button.css-q8rnfy",
-    ];
-
     let voted = false;
-    for (const sel of voteButtonSelectors) {
-      try {
-        await page.waitForSelector(sel, { timeout: 8_000 });
-        const btn = await page.$(sel);
-        if (btn) {
-          await btn.click();
-          await sleep(3000);
-          voted = true;
-          break;
-        }
-      } catch {
-        // coba selector berikutnya
+
+    // Cara 1: Klik tombol berdasarkan teks "Vote"
+    const clickVoteText = await clickButtonWithText(page, ["Vote for TempVoice", "Vote"]);
+    if (clickVoteText.clicked) {
+      log.info("VOTER", `Tombol "${clickVoteText.text}" diklik!`);
+      await sleep(3000);
+      voted = true;
+    }
+
+    // Cara 2: Selector CSS populer di top.gg
+    if (!voted) {
+      const voteSelectors = [
+        "#vote-button-container button",
+        "button[data-testid='vote-button']",
+        "button.css-q8rnfy",
+        "#__next button",
+      ];
+      for (const sel of voteSelectors) {
+        try {
+          const btn = await page.$(sel);
+          if (btn) {
+            await btn.click();
+            log.info("VOTER", `Tombol vote (${sel}) diklik!`);
+            await sleep(3000);
+            voted = true;
+            break;
+          }
+        } catch {}
       }
     }
 
+    // ── Step 8: Evaluasi hasil vote ───────────────────────────────────────
     if (!voted) {
-      // Ambil screenshot debug dan simpan ke file agar bisa diinspeksi
+      // Ambil screenshot debug jika gagal
       try {
         const fs = require("fs");
         const path = require("path");
         const debugDir = path.resolve(__dirname, "..", "logs");
         if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
         await page.screenshot({ path: path.join(debugDir, "voter-failed.png"), fullPage: true });
-        log.info("VOTER", `Screenshot halaman saat ini disimpan ke logs/voter-failed.png`);
+        log.info("VOTER", "Screenshot disimpan ke logs/voter-failed.png");
       } catch {}
 
-      // Cek apakah halaman menampilkan pesan "sudah vote"
-      const alreadyVoted = await page.evaluate(() => {
-        const text = document.body.innerText;
-        return (
-          text.includes("already voted") ||
-          text.includes("come back in") ||
-          text.includes("You have already voted")
-        );
-      });
-
-      if (alreadyVoted) {
-        log.info("VOTER", "Sudah vote dalam 12 jam terakhir — skip.");
-      } else {
-        // Log snapshot dari halaman agar ketahuan masalah aslinya
-        const snapshot = await page.evaluate(() => {
-          return {
-            title: document.title,
-            url: window.location.href,
-            textSnippet: document.body.innerText.replace(/\s+/g, " ").trim().substring(0, 300),
-          };
-        });
-        log.warn("VOTER", `Tombol vote tidak ditemukan. Detail halaman: ${JSON.stringify(snapshot)}`);
-      }
+      const snapshot = await page.evaluate(() => ({
+        title: document.title,
+        url: window.location.href,
+        textSnippet: (document.body.innerText || "").replace(/\s+/g, " ").trim().substring(0, 300),
+      }));
+      log.warn("VOTER", `Tombol vote tidak ditemukan. Detail: ${JSON.stringify(snapshot)}`);
       return;
     }
 
-    // ── Step 8: Konfirmasi hasil ──────────────────────────────────────────
+    // Konfirmasi sukses
     await sleep(2000);
-    const pageText = await page.evaluate(() => document.body.innerText);
-
+    const postVoteText = await page.evaluate(() => document.body.innerText || "");
     if (
-      pageText.includes("already voted") ||
-      pageText.includes("come back in") ||
-      pageText.includes("You have already voted")
+      postVoteText.includes("already voted") ||
+      postVoteText.includes("come back in") ||
+      postVoteText.includes("Thanks for voting") ||
+      postVoteText.includes("Voted successfully") ||
+      postVoteText.includes("Success")
     ) {
-      log.info("VOTER", "Sudah vote dalam 12 jam terakhir — skip.");
+      log.info("VOTER", "✅ Vote TempVoice berhasil dikonfirmasi!");
     } else {
-      log.info("VOTER", "✅ Vote TempVoice berhasil!");
+      log.info("VOTER", "✅ Tombol vote berhasil diklik!");
     }
 
   } catch (err) {
