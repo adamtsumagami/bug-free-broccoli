@@ -24,6 +24,7 @@ const config = {
   },
   voter: {
     enabled: process.env.TOPGG_VOTER_ENABLED === "true",
+    cookie: process.env.TOPGG_COOKIE || null,
   },
 };
 

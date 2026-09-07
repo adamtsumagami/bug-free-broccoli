@@ -45,6 +45,65 @@ function isTopGgDomain(rawUrl) {
 }
 
 /**
+ * Pasang cookie sesi top.gg manual (TOPGG_COOKIE)
+ * Menerima format:
+ * - Token saja: "eyJhbGciOi..."
+ * - Key-value: "__Secure-authjs.session-token=eyJhbGciOi..."
+ * - Multi-cookie (ekspor dari browser): "cookie1=val1; cookie2=val2"
+ */
+async function applyTopGgCookies(page, cookieInput) {
+  if (!cookieInput) return false;
+  try {
+    const cookiesToSet = [];
+    const parts = cookieInput.split(";").map((p) => p.trim()).filter(Boolean);
+
+    for (const part of parts) {
+      if (part.includes("=")) {
+        const eqIdx = part.indexOf("=");
+        const name = part.substring(0, eqIdx).trim();
+        const value = part.substring(eqIdx + 1).trim();
+        if (name && value) {
+          cookiesToSet.push({ name, value });
+        }
+      } else {
+        // Asumsikan token tunggal adalah __Secure-authjs.session-token
+        cookiesToSet.push({
+          name: "__Secure-authjs.session-token",
+          value: part.trim(),
+        });
+      }
+    }
+
+    for (const c of cookiesToSet) {
+      await page.setCookie({
+        name: c.name,
+        value: c.value,
+        domain: ".top.gg",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      });
+      await page.setCookie({
+        name: c.name,
+        value: c.value,
+        domain: "top.gg",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      });
+    }
+
+    log.info("VOTER", `✅ Menginjeksi ${cookiesToSet.length} cookie sesi manual ke top.gg.`);
+    return true;
+  } catch (err) {
+    log.warn("VOTER", `Gagal memasang cookie manual: ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * Tutup modal GDPR / Cookie Consent dan popup iklan secara agresif & cepat
  */
 async function dismissPopups(page) {
@@ -204,31 +263,82 @@ async function vote() {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   );
 
-  // Blokir resource berat untuk menghemat RAM dan bandwidth VPS
+  // Blokir resource berat & semua pelacak/iklan/CMP banner (Google Funding Choices)
   await page.setRequestInterception(true);
   page.on("request", (req) => {
+    const url = req.url().toLowerCase();
     const type = req.resourceType();
+
+    // Blokir resource gambar, font, media berat
     if (["image", "font", "media"].includes(type)) {
-      req.abort();
-    } else {
-      req.continue();
+      return req.abort();
     }
+
+    // Blokir Google Funding Choices, Google Ads, dan CMP banner yang menghalangi tombol vote
+    if (
+      url.includes("fundingchoices") ||
+      url.includes("googlesyndication") ||
+      url.includes("doubleclick") ||
+      url.includes("google-analytics") ||
+      url.includes("googletagservices") ||
+      url.includes("googletagmanager") ||
+      url.includes("adnxs") ||
+      url.includes("criteo") ||
+      url.includes("amazon-adsystem") ||
+      url.includes("quantcast") ||
+      url.includes("pubmatic") ||
+      url.includes("rubiconproject") ||
+      url.includes("taboola") ||
+      url.includes("outbrain") ||
+      url.includes("smartadserver")
+    ) {
+      return req.abort();
+    }
+
+    req.continue();
   });
 
   try {
-    // ── Jalur 1: Direct OAuth API (Cepat & Tanpa render UI Discord) ────────
     let sessionReady = false;
-    const directCallbackUrl = await requestDiscordOAuthDirect(config.token);
 
-    if (directCallbackUrl) {
-      log.info("VOTER", "Membuka callback URL top.gg untuk set sesi login...");
-      await page.goto(directCallbackUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-      await sleep(3000);
+    // ── Jalur 1: Manual Cookie (TOPGG_COOKIE) ─────────────────────────────
+    if (config.voter.cookie) {
+      log.info("VOTER", "Metode login: Manual Cookie (TOPGG_COOKIE terpasang).");
+      await applyTopGgCookies(page, config.voter.cookie);
       sessionReady = true;
-      log.info("VOTER", `Sesi login top.gg aktif via direct API! URL: ${page.url()}`);
     }
 
-    // ── Jalur 2: Fallback via Browser Injection jika Jalur 1 gagal ─────────
+    // ── Jalur 2: Direct OAuth API Discord (Otomatis & Cepat) ──────────────
+    if (!sessionReady) {
+      log.info("VOTER", "Metode login: Otomatis via Discord OAuth direct API...");
+      const directCallbackUrl = await requestDiscordOAuthDirect(config.token);
+
+      if (directCallbackUrl) {
+        log.info("VOTER", "Membuka callback URL top.gg untuk sinkronisasi sesi login...");
+        try {
+          await page.goto(directCallbackUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+        } catch {}
+
+        // Tunggu top.gg selesai memproses sesi login dan redirect
+        const startCbWait = Date.now();
+        while (Date.now() - startCbWait < 20_000) {
+          const currentUrl = page.url();
+          if (!currentUrl.includes("/login/callback")) {
+            log.info("VOTER", `Callback berhasil memproses sesi! URL: ${currentUrl}`);
+            sessionReady = true;
+            break;
+          }
+          await sleep(1500);
+        }
+
+        if (!sessionReady) {
+          log.info("VOTER", `Melanjutkan ke halaman vote (URL callback: ${page.url()}).`);
+          sessionReady = true;
+        }
+      }
+    }
+
+    // ── Jalur 3: Fallback via Browser Injection jika Jalur 1 & 2 gagal ────
     if (!sessionReady) {
       log.info("VOTER", "Menggunakan alur login browser fallback...");
       await page.goto(DISCORD_LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
@@ -319,7 +429,7 @@ async function vote() {
     // ── Step 3: Menuju halaman vote TempVoice ──────────────────────────────
     log.info("VOTER", `Menuju halaman vote: ${BOT_VOTE_URL}`);
     await page.goto(BOT_VOTE_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await sleep(3000);
+    await sleep(3500);
 
     // ── Step 4: Tutup pop-up GDPR & iklan ──────────────────────────────────
     await dismissPopups(page);
@@ -402,46 +512,61 @@ async function vote() {
 
     let voted = false;
 
-    // Cara 1: Selector CSS tombol Vote di top.gg
-    const voteSelectors = [
-      "#vote-button-container button",
-      "button[data-testid='vote-button']",
-      "button.button-primary",
-      "button.css-q8rnfy",
-      "#__next main button",
-    ];
+    // Evaluasi dan klik tombol vote
+    const voteResult = await page.evaluate(() => {
+      const isEligibleVoteBtn = (rawText) => {
+        const t = (rawText || "").trim().toLowerCase();
+        if (!t) return false;
+        if (t.includes("plus")) return false;
+        if (t.includes("again")) return false;
+        if (t.includes("automatic")) return false;
+        if (t.includes("rewards")) return false;
+        if (t === "vote" || t === "vote for tempvoice" || t === "vote now") return true;
+        if (t.startsWith("vote") && t.length < 30) return true;
+        return false;
+      };
 
-    for (const sel of voteSelectors) {
-      try {
-        const btn = await page.$(sel);
-        if (btn) {
-          const btnText = await page.evaluate(
-            (el) => (el.innerText || el.textContent || "").trim(),
-            btn
-          );
-          // Jangan klik tombol ads Plus
-          if (btnText.toLowerCase().includes("plus")) continue;
+      // 1. Cek selector CSS utama
+      const selectors = [
+        "#vote-button-container button",
+        "button[data-testid='vote-button']",
+        "button[type='submit']",
+        "button.button-primary",
+        "button.css-q8rnfy",
+        "#__next main button",
+        "main button",
+      ];
 
-          await btn.click();
-          log.info("VOTER", `Tombol vote (${sel} - "${btnText}") diklik!`);
-          await sleep(3000);
-          voted = true;
-          break;
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          const t = el.innerText || el.textContent || "";
+          if (isEligibleVoteBtn(t)) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.click();
+            return { clicked: true, text: t.trim(), method: sel };
+          }
         }
-      } catch {}
-    }
-
-    // Cara 2: Cari tombol dengan teks persis "Vote" atau "Vote for TempVoice"
-    if (!voted) {
-      const clickVoteText = await clickButtonWithExactText(page, [
-        "vote for tempvoice",
-        "vote",
-      ]);
-      if (clickVoteText.clicked) {
-        log.info("VOTER", `Tombol "${clickVoteText.text}" diklik!`);
-        await sleep(3000);
-        voted = true;
       }
+
+      // 2. Scan semua tombol & elemen berkategori clickable di halaman
+      const elements = Array.from(document.querySelectorAll("button, a[role='button'], div[role='button']"));
+      for (const el of elements) {
+        const t = el.innerText || el.textContent || "";
+        if (isEligibleVoteBtn(t)) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.click();
+          return { clicked: true, text: t.trim(), method: "element-scan" };
+        }
+      }
+
+      return { clicked: false };
+    });
+
+    if (voteResult && voteResult.clicked) {
+      log.info("VOTER", `Tombol vote (${voteResult.method} - "${voteResult.text}") diklik!`);
+      await sleep(3500);
+      voted = true;
     }
 
     // ── Step 7: Evaluasi hasil vote ───────────────────────────────────────
@@ -455,14 +580,21 @@ async function vote() {
         log.info("VOTER", "Screenshot disimpan ke logs/voter-failed.png");
       } catch {}
 
-      const snapshot = await page.evaluate(() => ({
-        title: document.title,
-        url: window.location.href,
-        textSnippet: (document.body.innerText || "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .substring(0, 300),
-      }));
+      const snapshot = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll("button, a[role='button']"))
+          .map((b) => (b.innerText || b.textContent || "").replace(/\s+/g, " ").trim())
+          .filter((t) => t.length > 0 && t.length < 50);
+
+        return {
+          title: document.title,
+          url: window.location.href,
+          availableButtons: buttons.slice(0, 15),
+          textSnippet: (document.body.innerText || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .substring(0, 300),
+        };
+      });
       log.warn("VOTER", `Tombol vote tidak ditemukan. Detail: ${JSON.stringify(snapshot)}`);
       return;
     }
