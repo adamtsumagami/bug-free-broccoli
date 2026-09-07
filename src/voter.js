@@ -239,6 +239,7 @@ async function vote() {
 
   const browser = await puppeteer.launch({
     headless: "new",
+    ignoreDefaultArgs: ["--enable-automation"],
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -253,11 +254,26 @@ async function vote() {
       "--single-process",
       "--no-zygote",
       "--js-flags=--max-old-space-size=256",
+      "--disable-blink-features=AutomationControlled",
     ],
   });
 
   const page = await browser.newPage();
   page.setDefaultNavigationTimeout(60_000);
+
+  // Stealth: Hapus penanda automation (navigator.webdriver) agar Cloudflare Turnstile lolos
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => undefined,
+    });
+    window.chrome = { runtime: {} };
+    Object.defineProperty(navigator, "plugins", {
+      get: () => [1, 2, 3, 4, 5],
+    });
+    Object.defineProperty(navigator, "languages", {
+      get: () => ["en-US", "en"],
+    });
+  });
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -269,7 +285,12 @@ async function vote() {
     const url = req.url().toLowerCase();
     const type = req.resourceType();
 
-    // Blokir resource gambar, font, media berat
+    // JANGAN blokir resource dari Cloudflare / Turnstile
+    if (url.includes("cloudflare") || url.includes("turnstile")) {
+      return req.continue();
+    }
+
+    // Blokir resource gambar, font, media berat (kecuali captcha/turnstile di atas)
     if (["image", "font", "media"].includes(type)) {
       return req.abort();
     }
@@ -600,7 +621,6 @@ async function vote() {
 
       if (voteResult && voteResult.clicked) {
         log.info("VOTER", `✅ Tombol vote (${voteResult.method} - "${voteResult.text}") berhasil diklik!`);
-        await sleep(3500);
         voted = true;
         break;
       }
@@ -608,7 +628,7 @@ async function vote() {
       await sleep(2000);
     }
 
-    // ── Step 7: Evaluasi hasil vote ───────────────────────────────────────
+    // ── Step 7: Evaluasi jika tombol vote tidak ditemukan ──────────────────
     if (!voted) {
       try {
         const fs = require("fs");
@@ -638,20 +658,104 @@ async function vote() {
       return;
     }
 
-    // Konfirmasi sukses
-    await sleep(2500);
-    const postVoteText = await page.evaluate(() => document.body.innerText || "");
-    if (
-      postVoteText.includes("already voted") ||
-      postVoteText.includes("come back in") ||
-      postVoteText.includes("Thanks for voting") ||
-      postVoteText.includes("thank you for voting") ||
-      postVoteText.includes("Voted successfully") ||
-      postVoteText.includes("Success")
-    ) {
-      log.info("VOTER", "✅ Vote TempVoice berhasil dikonfirmasi!");
+    // ── Step 8: Tunggu konfirmasi vote & selesaikan Cloudflare Turnstile ───
+    log.info("VOTER", "Menunggu konfirmasi vote & verifikasi Cloudflare Turnstile...");
+
+    let confirmed = false;
+    const postClickStart = Date.now();
+    const maxPostClickWait = 35_000; // tunggu hingga 35 detik
+
+    while (Date.now() - postClickStart < maxPostClickWait) {
+      // 1. Cek apakah ada Cloudflare Turnstile widget
+      const turnstileFrame = page.frames().find(
+        (f) => f.url().includes("challenges.cloudflare.com") || f.url().includes("turnstile")
+      );
+      const turnstileEl = await page.$(
+        "iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile'], div[id*='turnstile'], div[id*='cf-turnstile']"
+      );
+
+      if (turnstileFrame || turnstileEl) {
+        log.info("VOTER", "Mendeteksi widget Cloudflare Turnstile — mencoba verifikasi...");
+
+        // Coba klik checkbox di dalam iframe jika frame dapat diakses
+        if (turnstileFrame) {
+          try {
+            await turnstileFrame.evaluate(() => {
+              const target = document.querySelector(
+                "input[type='checkbox'], #challenge-stage, .ctp-checkbox-label, #cf-stage, body"
+              );
+              if (target) target.click();
+            });
+          } catch {}
+        }
+
+        // Coba klik koordinat checkbox iframe dari halaman utama
+        if (turnstileEl) {
+          try {
+            const box = await turnstileEl.boundingBox();
+            if (box && box.width > 0 && box.height > 0) {
+              await page.mouse.click(box.x + Math.min(35, box.width / 4), box.y + box.height / 2);
+              log.info("VOTER", "Mouse click dikirim ke area checkbox Cloudflare Turnstile.");
+            }
+          } catch {}
+        }
+      }
+
+      // 2. Cek apakah halaman mengonfirmasi vote berhasil
+      const currentText = await page.evaluate(() => document.body.innerText || "");
+      const isConfirmed =
+        currentText.includes("already voted") ||
+        currentText.includes("come back in") ||
+        currentText.includes("Thanks for voting") ||
+        currentText.includes("thank you for voting") ||
+        currentText.includes("Voted successfully") ||
+        currentText.includes("Vote again in") ||
+        currentText.includes("You have voted") ||
+        currentText.includes("Success");
+
+      if (isConfirmed) {
+        log.info("VOTER", "🎉 VOTE BERHASIL DIKONFIRMASI OLEH TOP.GG!");
+        confirmed = true;
+        break;
+      }
+
+      // 3. Jika Turnstile sudah selesai tapi tombol vote butuh klik konfirmasi akhir
+      const canClickAgain = await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll("button, a[role='button']")).find((b) => {
+          const txt = (b.innerText || b.textContent || "").toLowerCase().trim();
+          const dis = b.disabled || b.getAttribute("aria-disabled") === "true";
+          return (txt === "vote" || txt === "vote now") && !dis;
+        });
+        if (btn) {
+          btn.click();
+          return true;
+        }
+        return false;
+      });
+      if (canClickAgain) {
+        log.info("VOTER", "Tombol Vote diklik ulang (post-verification)...");
+      }
+
+      await sleep(2500);
+    }
+
+    // Ambil screenshot pasca-vote untuk verifikasi visual
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const debugDir = path.resolve(__dirname, "..", "logs");
+      if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+      await page.screenshot({ path: path.join(debugDir, "voter-after-vote.png"), fullPage: true });
+      log.info("VOTER", "Screenshot disimpan ke logs/voter-after-vote.png");
+    } catch {}
+
+    if (confirmed) {
+      log.info("VOTER", "✅ Vote TempVoice sukses selesai dan tercatat di Top.gg.");
     } else {
-      log.info("VOTER", "✅ Tombol vote berhasil diklik!");
+      const finalSnippet = await page.evaluate(() =>
+        (document.body.innerText || "").replace(/\s+/g, " ").trim().substring(0, 250)
+      );
+      log.info("VOTER", `Selesai memproses klik vote. Cuplikan teks: "${finalSnippet}"`);
     }
   } catch (err) {
     log.error("VOTER", `Vote gagal: ${err.message}`, err.stack);
