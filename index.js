@@ -48,9 +48,6 @@ client.once("ready", async () => {
   // Set activity (Rich Presence jika RPC_APP_ID di-set, basic jika tidak)
   if (config.activity.appId) {
     try {
-      const assets = await RichPresence.getExternal(
-        client, config.activity.appId, config.activity.largeImage
-      );
       const rpc = new RichPresence()
         .setApplicationId(config.activity.appId)
         .setType("PLAYING")
@@ -58,8 +55,20 @@ client.once("ready", async () => {
         .setDetails(config.activity.name)
         .setStartTimestamp(Date.now());
 
-      if (assets && assets[0]?.external_asset_path) {
-        rpc.setAssetsLargeImage(`mp:${assets[0].external_asset_path}`);
+      const imageVal = config.activity.largeImage;
+      if (imageVal) {
+        if (imageVal.startsWith("http://") || imageVal.startsWith("https://")) {
+          // External URL via media proxy
+          const assets = await RichPresence.getExternal(
+            client, config.activity.appId, imageVal
+          );
+          if (assets && assets[0]?.external_asset_path) {
+            rpc.setAssetsLargeImage(`mp:${assets[0].external_asset_path}`);
+          }
+        } else {
+          // Asset key dari Discord Developer Portal (Art Assets)
+          rpc.setAssetsLargeImage(imageVal);
+        }
         rpc.setAssetsLargeText(config.activity.largeText);
       }
 
