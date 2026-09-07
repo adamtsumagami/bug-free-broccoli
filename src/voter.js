@@ -487,86 +487,125 @@ async function vote() {
       }
     }
 
-    // ── Step 6: Cari dan klik tombol Vote ──────────────────────────────────
-    log.info("VOTER", "Mencari tombol Vote...");
-    await dismissPopups(page);
-
-    // Scroll sedikit ke bawah agar elemen terlihat di viewport
-    try {
-      await page.evaluate(() => window.scrollBy(0, 350));
-      await sleep(1000);
-    } catch {}
-
-    // Cek apakah sudah pernah vote sebelumnya
-    pageText = await page.evaluate(() => document.body.innerText || "");
-    if (
-      pageText.includes("already voted") ||
-      pageText.includes("come back in") ||
-      pageText.includes("Come back later") ||
-      pageText.includes("You have already voted") ||
-      pageText.includes("Vote again in")
-    ) {
-      log.info("VOTER", "ℹ️ Sudah vote dalam 12 jam terakhir — skip.");
-      return;
-    }
+    // ── Step 6: Cari dan klik tombol Vote (Menunggu countdown iklan jika ada) ─
+    log.info("VOTER", "Mencari tombol Vote (menunggu countdown iklan selesai jika ada)...");
 
     let voted = false;
+    const maxVoteWaitMs = 45_000;
+    const voteWaitStart = Date.now();
+    let lastLoggedCountdown = null;
 
-    // Evaluasi dan klik tombol vote
-    const voteResult = await page.evaluate(() => {
-      const isEligibleVoteBtn = (rawText) => {
-        const t = (rawText || "").trim().toLowerCase();
-        if (!t) return false;
-        if (t.includes("plus")) return false;
-        if (t.includes("again")) return false;
-        if (t.includes("automatic")) return false;
-        if (t.includes("rewards")) return false;
-        if (t === "vote" || t === "vote for tempvoice" || t === "vote now") return true;
-        if (t.startsWith("vote") && t.length < 30) return true;
-        return false;
-      };
+    while (Date.now() - voteWaitStart < maxVoteWaitMs) {
+      await dismissPopups(page);
 
-      // 1. Cek selector CSS utama
-      const selectors = [
-        "#vote-button-container button",
-        "button[data-testid='vote-button']",
-        "button[type='submit']",
-        "button.button-primary",
-        "button.css-q8rnfy",
-        "#__next main button",
-        "main button",
-      ];
+      // Cek apakah sudah pernah vote sebelumnya
+      pageText = await page.evaluate(() => document.body.innerText || "");
+      if (
+        pageText.includes("already voted") ||
+        pageText.includes("come back in") ||
+        pageText.includes("Come back later") ||
+        pageText.includes("You have already voted") ||
+        pageText.includes("Vote again in")
+      ) {
+        log.info("VOTER", "ℹ️ Sudah vote dalam 12 jam terakhir — skip.");
+        return;
+      }
 
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        if (el) {
-          const t = el.innerText || el.textContent || "";
-          if (isEligibleVoteBtn(t)) {
+      // Deteksi status countdown iklan (misal: "You will be able to vote after this ad. 7")
+      const countdownInfo = await page.evaluate(() => {
+        const text = document.body.innerText || "";
+        const m = text.match(/vote after this ad[^\d]*(\d+)/i);
+        return m ? m[1] : null;
+      });
+
+      if (countdownInfo && countdownInfo !== lastLoggedCountdown) {
+        lastLoggedCountdown = countdownInfo;
+        log.info("VOTER", `Menunggu iklan top.gg selesai: ${countdownInfo} detik tersisa...`);
+      }
+
+      // Scroll sedikit agar elemen tetap aktif dan terlihat di viewport
+      try {
+        await page.evaluate(() => window.scrollBy(0, 150));
+      } catch {}
+
+      // Evaluasi dan klik tombol vote
+      const voteResult = await page.evaluate(() => {
+        const isEligibleVoteBtn = (el) => {
+          if (!el) return false;
+          if (el.disabled || el.getAttribute("aria-disabled") === "true") return false;
+
+          const rawText = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+          const aria = (el.getAttribute("aria-label") || "").toLowerCase();
+          const testId = (el.getAttribute("data-testid") || "").toLowerCase();
+          const id = (el.id || "").toLowerCase();
+
+          // Hindari tombol iklan / Top.gg Plus / auto vote
+          if (
+            rawText.includes("plus") ||
+            rawText.includes("again") ||
+            rawText.includes("automatic") ||
+            rawText.includes("rewards") ||
+            rawText.includes("buy auto") ||
+            rawText.includes("remove ads")
+          ) {
+            return false;
+          }
+
+          // Tombol Vote standar
+          if (rawText === "vote" || rawText === "vote for tempvoice" || rawText === "vote now") return true;
+          if (rawText.startsWith("vote") && rawText.length < 35) return true;
+          if (rawText.endsWith("vote") && rawText.length < 35) return true;
+
+          // Cocokkan atribut pengenal tombol
+          if (testId === "vote-button" || id === "vote-button") return true;
+          if (aria.includes("vote") && !aria.includes("again") && !aria.includes("auto")) return true;
+
+          return false;
+        };
+
+        // 1. Cek selector CSS utama
+        const selectors = [
+          "#vote-button-container button",
+          "button[data-testid='vote-button']",
+          "button[type='submit']",
+          "button.button-primary",
+          "button.css-q8rnfy",
+          "#__next main button",
+          "main button",
+        ];
+
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el && isEligibleVoteBtn(el)) {
             el.scrollIntoView({ behavior: "smooth", block: "center" });
             el.click();
-            return { clicked: true, text: t.trim(), method: sel };
+            const text = (el.innerText || el.textContent || "").trim();
+            return { clicked: true, text, method: sel };
           }
         }
-      }
 
-      // 2. Scan semua tombol & elemen berkategori clickable di halaman
-      const elements = Array.from(document.querySelectorAll("button, a[role='button'], div[role='button']"));
-      for (const el of elements) {
-        const t = el.innerText || el.textContent || "";
-        if (isEligibleVoteBtn(t)) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.click();
-          return { clicked: true, text: t.trim(), method: "element-scan" };
+        // 2. Scan semua tombol & elemen berkategori clickable di halaman
+        const elements = Array.from(document.querySelectorAll("button, a[role='button'], div[role='button']"));
+        for (const el of elements) {
+          if (isEligibleVoteBtn(el)) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.click();
+            const text = (el.innerText || el.textContent || "").trim();
+            return { clicked: true, text, method: "element-scan" };
+          }
         }
+
+        return { clicked: false };
+      });
+
+      if (voteResult && voteResult.clicked) {
+        log.info("VOTER", `✅ Tombol vote (${voteResult.method} - "${voteResult.text}") berhasil diklik!`);
+        await sleep(3500);
+        voted = true;
+        break;
       }
 
-      return { clicked: false };
-    });
-
-    if (voteResult && voteResult.clicked) {
-      log.info("VOTER", `Tombol vote (${voteResult.method} - "${voteResult.text}") diklik!`);
-      await sleep(3500);
-      voted = true;
+      await sleep(2000);
     }
 
     // ── Step 7: Evaluasi hasil vote ───────────────────────────────────────
