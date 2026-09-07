@@ -3,7 +3,7 @@
 const { getLogger }  = require("./logger");
 const { config }     = require("./config");
 const { joinVC, getState, setMute, setDeafen } = require("./voice");
-const { TOURNAMENT } = require("./rpc");
+const { vote }       = require("./voter");
 
 const log     = getLogger();
 const startAt = Date.now();
@@ -100,8 +100,6 @@ const COMMANDS = {
         ? voiceState.lastJoinTime.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
         : "—";
 
-      const rpcMode = config.rpc.appId ? "✅ VCT Masters London" : "❌ Disabled (basic activity)";
-
       const lines = [
         `📊 **Status Bot AFK**`,
         ``,
@@ -113,12 +111,6 @@ const COMMANDS = {
         `📅 Last Join: \`${lastJoin}\``,
         `📋 Log Level: \`${config.logLevel}\``,
         `👥 Whitelist: ${[...allowed].map(i => `\`${i}\``).join(", ")}`,
-        ``,
-        `🏆 **RPC:** ${rpcMode}`,
-        `🎮 Tournament: \`${TOURNAMENT.shortName}\``,
-        `📍 Venue: \`${TOURNAMENT.venue}, ${TOURNAMENT.city}\``,
-        `📆 Dates: \`${TOURNAMENT.dates}\``,
-        `💰 Prize: \`${TOURNAMENT.prizePool}\``,
       ];
 
       msg.channel.send(lines.join("\n"));
@@ -162,6 +154,21 @@ const COMMANDS = {
     handler: async (msg, _args, client) => {
       await setDeafen(client, false);
       msg.channel.send("🔊 Bot sekarang **undeafened**.");
+    },
+  },
+
+  "!vote": {
+    desc: "Trigger vote TempVoice manual di top.gg",
+    usage: "!vote",
+    ownerOnly: true,
+    handler: async (msg) => {
+      msg.channel.send("🗳️ Menjalankan vote manual untuk TempVoice di top.gg...");
+      try {
+        await vote();
+        msg.channel.send("✅ Sesi vote selesai. Cek log untuk detail.");
+      } catch (e) {
+        msg.channel.send(`❌ Gagal vote: ${e.message}`);
+      }
     },
   },
 

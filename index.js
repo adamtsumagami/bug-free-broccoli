@@ -5,11 +5,11 @@ const { config, validate } = require("./src/config");
 validate();
 
 // ─── Dependencies ────────────────────────────────────────────────────────────
-const { Client }                = require("discord.js-selfbot-v13");
+const { Client, RichPresence }  = require("discord.js-selfbot-v13");
 const { createLogger }          = require("./src/logger");
 const { joinVC, handleVoiceStateUpdate, cleanup } = require("./src/voice");
 const { handleMessage }         = require("./src/commands");
-const { startRPC, stopRPC }     = require("./src/rpc");
+const { startVoter, stopVoter } = require("./src/voter");
 
 // ─── Init Logger ─────────────────────────────────────────────────────────────
 const log = createLogger(config.logLevel);
@@ -20,10 +20,7 @@ log.info("BOOT", `Log level: ${config.logLevel}`);
 log.info("BOOT", `Owner ID: ${config.ownerId}`);
 log.info("BOOT", `Reconnect delay: ${config.reconnectDelay}ms`);
 log.info("BOOT", `Activity: ${config.activity.type} ${config.activity.name}`);
-if (config.rpc.appId) {
-  log.info("BOOT", `RPC App ID: ${config.rpc.appId}`);
-  log.info("BOOT", `RPC Rotation: every ${config.rpc.rotateMinutes} minutes`);
-}
+log.info("BOOT", `Top.gg Voter: ${config.voter.enabled ? "Enabled (TempVoice)" : "Disabled"}`);
 if (config.voiceChannelId) {
   log.info("BOOT", `Auto-join VC: ${config.voiceChannelId}`);
 }
@@ -48,8 +45,34 @@ client.once("ready", async () => {
   log.info("READY", `Login sebagai: ${client.user.tag} (${client.user.id})`);
   log.info("READY", `Servers: ${client.guilds.cache.size}`);
 
-  // Start VCT Rich Presence (or fallback to basic activity)
-  startRPC(client);
+  // Set activity (Rich Presence jika RPC_APP_ID di-set, basic jika tidak)
+  if (config.activity.appId) {
+    try {
+      const assets = await RichPresence.getExternal(
+        client, config.activity.appId, config.activity.largeImage
+      );
+      const rpc = new RichPresence()
+        .setApplicationId(config.activity.appId)
+        .setType("PLAYING")
+        .setName(config.activity.name)
+        .setDetails(config.activity.name)
+        .setStartTimestamp(Date.now());
+
+      if (assets && assets[0]?.external_asset_path) {
+        rpc.setAssetsLargeImage(`mp:${assets[0].external_asset_path}`);
+        rpc.setAssetsLargeText(config.activity.largeText);
+      }
+
+      client.user.setActivity(rpc);
+      log.info("READY", `Rich Presence set: ${config.activity.name} (dengan icon)`);
+    } catch (e) {
+      log.warn("READY", `Rich Presence gagal, fallback ke basic activity: ${e.message}`);
+      client.user.setActivity(config.activity.name, { type: config.activity.type });
+    }
+  } else {
+    client.user.setActivity(config.activity.name, { type: config.activity.type });
+    log.info("READY", `Basic activity set: ${config.activity.type} ${config.activity.name}`);
+  }
 
   // Auto-join VC jika di-set
   if (config.voiceChannelId) {
@@ -62,6 +85,9 @@ client.once("ready", async () => {
 
   log.separator("RUNNING");
   log.info("READY", "Bot siap menerima perintah via DM.");
+
+  // Mulai auto-voter top.gg
+  startVoter();
 });
 
 // ── DM Commands ──────────────────────────────────────────────────────────────
@@ -103,8 +129,8 @@ function gracefulShutdown(signal) {
   log.info("SHUTDOWN", `Menerima signal: ${signal}`);
 
   cleanup();
-  stopRPC();
-  log.info("SHUTDOWN", "Voice & RPC cleanup selesai.");
+  stopVoter();
+  log.info("SHUTDOWN", "Voice & voter cleanup selesai.");
 
   client.destroy();
   log.info("SHUTDOWN", "Client destroyed.");

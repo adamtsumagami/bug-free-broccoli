@@ -16,12 +16,14 @@ const config = {
   reconnectDelay: parseInt(process.env.RECONNECT_DELAY_MS, 10) || 5000,
   logLevel:       (process.env.LOG_LEVEL || "INFO").toUpperCase(),
   activity: {
-    name: process.env.ACTIVITY_NAME || "Minecraft",
+    name: process.env.ACTIVITY_NAME || "Grand Theft Auto VI",
     type: process.env.ACTIVITY_TYPE || "PLAYING",
+    appId: process.env.RPC_APP_ID || null,
+    largeImage: process.env.ACTIVITY_LARGE_IMAGE || "https://upload.wikimedia.org/wikipedia/commons/2/21/GTA_VI_Logo.png",
+    largeText: process.env.ACTIVITY_LARGE_TEXT || "Grand Theft Auto VI",
   },
-  rpc: {
-    appId:         process.env.RPC_APP_ID          || null,
-    rotateMinutes: parseInt(process.env.RPC_ROTATE_MINUTES, 10) || 3,
+  voter: {
+    enabled: process.env.TOPGG_VOTER_ENABLED === "true",
   },
 };
 

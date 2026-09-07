@@ -1,6 +1,6 @@
 # AFK Selfbot v2.0
 
-Discord AFK selfbot — tetap di voice channel dengan auto-reconnect, logging lengkap, dan **VCT Esports Rich Presence**.
+Discord AFK selfbot — tetap di voice channel dengan auto-reconnect dan logging lengkap.
 
 > ⚠️ Self-bot melanggar ToS Discord. Gunakan dengan risiko sendiri.
 
@@ -30,22 +30,14 @@ OWNER_ID=your_discord_user_id
 VOICE_CHANNEL_ID=123456789012345678
 RECONNECT_DELAY_MS=5000
 LOG_LEVEL=INFO
+ACTIVITY_NAME=Grand Theft Auto VI
+ACTIVITY_TYPE=PLAYING
 
-# VCT Rich Presence (opsional)
+# Rich Presence dengan icon (opsional, buat app di discord.com/developers)
 RPC_APP_ID=123456789012345678
-RPC_ROTATE_MINUTES=3
 ```
 
-### 3. Setup RPC (Opsional)
-
-Untuk mengaktifkan Rich Presence VCT Masters London:
-
-1. Buka [Discord Developer Portal](https://discord.com/developers/applications)
-2. Klik **"New Application"** → beri nama (misal "VALORANT Esports")
-3. Copy **Application ID** → paste ke `RPC_APP_ID` di `.env`
-4. Selesai! Bot akan menampilkan matchup VCT secara otomatis
-
-### 4. Jalankan
+### 3. Jalankan
 
 ```bash
 npm start
@@ -60,54 +52,38 @@ pm2 save && pm2 startup
 
 ## Command (via DM)
 
-| Command            | Fungsi                    | Akses       |
-|--------------------|---------------------------|-------------|
-| `!join <id>`       | Join voice channel        | Whitelist   |
-| `!status`          | Cek status lengkap bot    | Whitelist   |
-| `!help`            | Daftar semua command      | Whitelist   |
-| `!add <user_id>`   | Tambah user ke whitelist  | Owner only  |
-| `!remove <user_id>`| Hapus user dari whitelist | Owner only  |
+| Command             | Fungsi                    | Akses       |
+|---------------------|---------------------------|-------------|
+| `!join <id>`        | Join voice channel        | Whitelist   |
+| `!status`           | Cek status lengkap bot    | Whitelist   |
+| `!mute`             | Mute bot di voice         | Whitelist   |
+| `!unmute`           | Unmute bot di voice       | Whitelist   |
+| `!deafen`           | Deafen bot di voice       | Whitelist   |
+| `!undeafen`         | Undeafen bot di voice     | Whitelist   |
+| `!help`             | Daftar semua command      | Whitelist   |
+| `!add <user_id>`    | Tambah user ke whitelist  | Owner only  |
+| `!remove <user_id>` | Hapus user dari whitelist | Owner only  |
 
-## VCT Rich Presence
+## Top.gg Auto Voter (TempVoice)
 
-Saat `RPC_APP_ID` di-set, bot akan menampilkan Rich Presence bertema **VCT Masters London 2026**:
+Bot dilengkapi fitur otomatis voting untuk bot **TempVoice** di top.gg setiap 12 jam:
 
-- 🔴 **Live match** — saat tanggal sesuai jadwal pertandingan
-- 📅 **Upcoming** — menampilkan pertandingan berikutnya
-- ⚔️ **Showcase** — rotasi matchup dari seluruh jadwal
+- **Target Bot**: TempVoice (`762217899355013120`)
+- **Interval**: Setiap 12 jam (sesuai batas cooldown top.gg)
+- **Cara Kerja**: Menggunakan Puppeteer headless browser untuk mengautentikasi sesi Discord ke top.gg OAuth dan mengeklik vote secara otomatis.
 
-**Info yang ditampilkan:**
-- Nama tim vs tim (contoh: `Paper Rex vs Leviatán`)
-- Round (Swiss Stage, Upper Bracket, Grand Final, dll)
-- Best of (BO3/BO5)
-- Map pool
-- Icon VCT Masters London & VALORANT logo
-- Button link ke VALORANT Esports & Liquipedia
-
-**12 Tim yang berpartisipasi:**
-
-| Tim | Region | Seed |
-|-----|--------|------|
-| G2 Esports | Americas | #1 |
-| EDward Gaming | China | #1 |
-| Team Heretics | EMEA | #1 |
-| Paper Rex | Pacific | #1 |
-| Leviatán | Americas | #2 |
-| NRG | Americas | #3 |
-| XLG Esports | China | #2 |
-| Dragon Ranger Gaming | China | #3 |
-| Team Vitality | EMEA | #2 |
-| FUT Esports | EMEA | #3 |
-| FULL SENSE | Pacific | #2 |
-| Global Esports | Pacific | #3 |
+Untuk mengaktifkannya, set di `.env`:
+```env
+TOPGG_VOTER_ENABLED=true
+```
 
 ## Logging
 
 Log ditulis ke console dan file di `logs/bot-YYYY-MM-DD.log`.
 
 **Log levels** (set via `LOG_LEVEL` di `.env`):
-- `DEBUG` — semua detail (termasuk auth checks, RPC updates)
-- `INFO` — operasi normal (join, command, reconnect, RPC rotation)
+- `DEBUG` — semua detail (termasuk auth checks)
+- `INFO` — operasi normal (join, command, reconnect)
 - `WARN` — hal yang perlu perhatian (disconnect, failed auth)
 - `ERROR` — error yang perlu ditangani
 
@@ -115,7 +91,6 @@ Contoh output:
 ```
 2026-06-18 01:30:00 INFO  [BOOT]  AFK Selfbot starting...
 2026-06-18 01:30:01 INFO  [READY] Login sebagai: User#1234 (123456789)
-2026-06-18 01:30:01 INFO  [RPC]   Presence updated: PRX vs LEV (live) — Upper Quarterfinal
 2026-06-18 01:30:01 INFO  [VOICE] Joined #general di server "My Server" (987654321)
 ```
 
@@ -128,7 +103,7 @@ Contoh output:
 │   ├── logger.js     # Logging system
 │   ├── voice.js      # Voice channel management
 │   ├── commands.js   # DM command handler
-│   └── rpc.js        # VCT Rich Presence
+│   └── voter.js      # Top.gg auto voter (TempVoice)
 ├── logs/             # Log files (auto-generated)
 ├── .env              # Konfigurasi (jangan commit!)
 ├── .env.example      # Template konfigurasi
