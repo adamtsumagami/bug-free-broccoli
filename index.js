@@ -48,7 +48,7 @@ client.once("ready", async () => {
   // Set activity (Rich Presence jika RPC_APP_ID di-set, basic jika tidak)
   if (config.activity.appId) {
     try {
-      const rpc = new RichPresence()
+      const rpc = new RichPresence(client)
         .setApplicationId(config.activity.appId)
         .setType("PLAYING")
         .setName(config.activity.name)
@@ -73,9 +73,9 @@ client.once("ready", async () => {
       }
 
       client.user.setActivity(rpc);
-      log.info("READY", `Rich Presence set: ${config.activity.name} (dengan icon)`);
+      log.info("READY", `Rich Presence set: ${config.activity.name} (dengan icon "${imageVal}")`);
     } catch (e) {
-      log.warn("READY", `Rich Presence gagal, fallback ke basic activity: ${e.message}`);
+      log.warn("READY", `Rich Presence gagal: ${e.message}`, e.stack);
       client.user.setActivity(config.activity.name, { type: config.activity.type });
     }
   } else {
