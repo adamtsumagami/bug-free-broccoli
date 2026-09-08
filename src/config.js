@@ -18,9 +18,10 @@ const config = {
   activity: {
     name: process.env.ACTIVITY_NAME || "Grand Theft Auto VI",
     type: process.env.ACTIVITY_TYPE || "PLAYING",
-    appId: process.env.RPC_APP_ID || null,
-    largeImage: process.env.ACTIVITY_LARGE_IMAGE || "gta6",
-    largeText: process.env.ACTIVITY_LARGE_TEXT || "Grand Theft Auto VI",
+    appId: process.env.RPC_APP_ID || "1546574770047291453",
+    largeImage: process.env.ACTIVITY_LARGE_IMAGE || "1546576904646303845",
+    largeText: process.env.ACTIVITY_LARGE_TEXT || null,
+    details: process.env.ACTIVITY_DETAILS || null,
   },
   voter: {
     enabled: process.env.TOPGG_VOTER_ENABLED === "true",

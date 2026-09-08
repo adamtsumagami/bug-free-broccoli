@@ -37,6 +37,40 @@ const client = new Client({
   ],
 });
 
+// ─── Helper: Resolve Rich Presence Asset ID ─────────────────────────────────
+
+async function resolveAsset(client, appId, asset) {
+  if (!asset) return null;
+  // External URL via proxy
+  if (asset.startsWith("http://") || asset.startsWith("https://")) {
+    try {
+      const assets = await RichPresence.getExternal(client, appId, asset);
+      if (assets && assets[0]?.external_asset_path) {
+        return `mp:${assets[0].external_asset_path}`;
+      }
+    } catch {}
+    return asset;
+  }
+  // Snowflake ID (17-20 digit angka)
+  if (/^[0-9]{17,20}$/.test(asset)) {
+    return asset;
+  }
+  // Nama asset di Discord Developer Portal Art Assets (misal: "gta6")
+  try {
+    const res = await fetch(`https://discord.com/api/v9/oauth2/applications/${appId}/assets`);
+    if (res.ok) {
+      const assets = await res.json();
+      const match = assets.find((a) => a.name.toLowerCase() === asset.toLowerCase());
+      if (match) return match.id;
+    }
+  } catch {}
+  // Fallback khusus jika gta6
+  if (asset.toLowerCase() === "gta6" && appId === "1546574770047291453") {
+    return "1546576904646303845";
+  }
+  return asset;
+}
+
 // ─── Events ──────────────────────────────────────────────────────────────────
 
 client.once("ready", async () => {
@@ -51,28 +85,26 @@ client.once("ready", async () => {
         .setApplicationId(config.activity.appId)
         .setType("PLAYING")
         .setName(config.activity.name)
-        .setDetails(config.activity.name)
         .setStartTimestamp(Date.now());
+
+      // Jangan set details kecuali didefinisikan secara eksplisit (agar tidak ada teks kecil di bawah nama game)
+      if (config.activity.details) {
+        rpc.setDetails(config.activity.details);
+      }
 
       const imageVal = config.activity.largeImage;
       if (imageVal) {
-        if (imageVal.startsWith("http://") || imageVal.startsWith("https://")) {
-          // External URL via media proxy
-          const assets = await RichPresence.getExternal(
-            client, config.activity.appId, imageVal
-          );
-          if (assets && assets[0]?.external_asset_path) {
-            rpc.setAssetsLargeImage(`mp:${assets[0].external_asset_path}`);
-          }
-        } else {
-          // Asset key dari Discord Developer Portal (Art Assets)
-          rpc.setAssetsLargeImage(imageVal);
+        const resolvedImage = await resolveAsset(client, config.activity.appId, imageVal);
+        if (resolvedImage) {
+          rpc.setAssetsLargeImage(resolvedImage);
         }
-        rpc.setAssetsLargeText(config.activity.largeText);
+        if (config.activity.largeText) {
+          rpc.setAssetsLargeText(config.activity.largeText);
+        }
       }
 
       client.user.setActivity(rpc);
-      log.info("READY", `Rich Presence set: ${config.activity.name} (dengan icon "${imageVal}")`);
+      log.info("READY", `Rich Presence set: ${config.activity.name} (appId: ${config.activity.appId}, icon: ${config.activity.largeImage})`);
     } catch (e) {
       log.warn("READY", `Rich Presence gagal: ${e.message}`, e.stack);
       client.user.setActivity(config.activity.name, { type: config.activity.type });
