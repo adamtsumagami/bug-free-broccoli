@@ -41,6 +41,16 @@ const client = new Client({
 
 async function resolveAsset(client, appId, asset) {
   if (!asset || asset === "none" || asset === "false") return null;
+
+  // Discord CDN URL (attachments) didukung langsung secara native oleh Discord
+  if (
+    asset.startsWith("https://cdn.discordapp.com/") ||
+    asset.startsWith("https://media.discordapp.net/") ||
+    asset.startsWith("mp:")
+  ) {
+    return asset;
+  }
+
   // External URL via proxy
   if (asset.startsWith("http://") || asset.startsWith("https://")) {
     try {
@@ -51,10 +61,12 @@ async function resolveAsset(client, appId, asset) {
     } catch {}
     return asset;
   }
+
   // Snowflake ID (17-20 digit angka)
   if (/^[0-9]{17,20}$/.test(asset)) {
     return asset;
   }
+
   // Nama asset di Discord Developer Portal Art Assets (misal: "gta6")
   try {
     const res = await fetch(`https://discord.com/api/v9/oauth2/applications/${appId}/assets`);
@@ -64,10 +76,7 @@ async function resolveAsset(client, appId, asset) {
       if (match) return match.id;
     }
   } catch {}
-  // Fallback khusus jika gta6
-  if (asset.toLowerCase() === "gta6" && appId === "1546574770047291453") {
-    return "1546576904646303845";
-  }
+
   return asset;
 }
 
