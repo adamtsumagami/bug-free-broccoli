@@ -40,7 +40,7 @@ const client = new Client({
 // ─── Helper: Resolve Rich Presence Asset ID ─────────────────────────────────
 
 async function resolveAsset(client, appId, asset) {
-  if (!asset) return null;
+  if (!asset || asset === "none" || asset === "false") return null;
   // External URL via proxy
   if (asset.startsWith("http://") || asset.startsWith("https://")) {
     try {

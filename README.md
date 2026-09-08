@@ -84,6 +84,9 @@ Contoh output:
 
 ```
 ├── index.js          # Entry point
+├── assets/           # Art assets (logo GTA VI berukuran proporsional)
+│   ├── gta6_logo.png     # Logo standar (proporsional dengan padding)
+│   └── gta6_compact.png  # Logo compact (ukuran lebih kecil/minimalis)
 ├── src/
 │   ├── config.js     # Konfigurasi & validasi
 │   ├── logger.js     # Logging system
