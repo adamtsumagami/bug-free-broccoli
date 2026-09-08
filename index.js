@@ -8,7 +8,6 @@ validate();
 const { Client, RichPresence }  = require("discord.js-selfbot-v13");
 const { createLogger }          = require("./src/logger");
 const { joinVC, handleVoiceStateUpdate, cleanup } = require("./src/voice");
-const { handleMessage }         = require("./src/commands");
 const { startVoter, stopVoter } = require("./src/voter");
 
 // ─── Init Logger ─────────────────────────────────────────────────────────────
@@ -17,7 +16,9 @@ const log = createLogger(config.logLevel);
 log.separator("STARTUP");
 log.info("BOOT", "AFK Selfbot starting...");
 log.info("BOOT", `Log level: ${config.logLevel}`);
-log.info("BOOT", `Owner ID: ${config.ownerId}`);
+if (config.ownerId) {
+  log.info("BOOT", `Owner ID: ${config.ownerId}`);
+}
 log.info("BOOT", `Reconnect delay: ${config.reconnectDelay}ms`);
 log.info("BOOT", `Activity: ${config.activity.type} ${config.activity.name}`);
 log.info("BOOT", `Top.gg Voter: ${config.voter.enabled ? "Enabled (TempVoice)" : "Disabled"}`);
@@ -33,9 +34,7 @@ const client = new Client({
   intents: [
     "GUILDS",
     "GUILD_VOICE_STATES",
-    "DIRECT_MESSAGES",
   ],
-  partials: ["CHANNEL"],
 });
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -89,18 +88,14 @@ client.once("ready", async () => {
     const result = await joinVC(client, config.voiceChannelId);
     log.info("VOICE", result);
   } else {
-    log.info("READY", "Tidak ada VOICE_CHANNEL_ID. Kirim DM '!join <channel_id>' untuk mulai.");
+    log.info("READY", "Tidak ada VOICE_CHANNEL_ID di .env.");
   }
 
   log.separator("RUNNING");
-  log.info("READY", "Bot siap menerima perintah via DM.");
 
   // Mulai auto-voter top.gg
   startVoter();
 });
-
-// ── DM Commands ──────────────────────────────────────────────────────────────
-client.on("messageCreate", (msg) => handleMessage(client, msg));
 
 // ── Voice State Tracking ─────────────────────────────────────────────────────
 client.on("voiceStateUpdate", (o, n) => handleVoiceStateUpdate(client, o, n));

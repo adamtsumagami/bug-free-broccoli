@@ -50,20 +50,6 @@ pm2 start index.js --name afkbot
 pm2 save && pm2 startup
 ```
 
-## Command (via DM)
-
-| Command             | Fungsi                    | Akses       |
-|---------------------|---------------------------|-------------|
-| `!join <id>`        | Join voice channel        | Whitelist   |
-| `!status`           | Cek status lengkap bot    | Whitelist   |
-| `!mute`             | Mute bot di voice         | Whitelist   |
-| `!unmute`           | Unmute bot di voice       | Whitelist   |
-| `!deafen`           | Deafen bot di voice       | Whitelist   |
-| `!undeafen`         | Undeafen bot di voice     | Whitelist   |
-| `!help`             | Daftar semua command      | Whitelist   |
-| `!add <user_id>`    | Tambah user ke whitelist  | Owner only  |
-| `!remove <user_id>` | Hapus user dari whitelist | Owner only  |
-
 ## Top.gg Auto Voter (TempVoice)
 
 Bot dilengkapi fitur otomatis voting untuk bot **TempVoice** di top.gg setiap 12 jam:
@@ -83,7 +69,7 @@ Log ditulis ke console dan file di `logs/bot-YYYY-MM-DD.log`.
 
 **Log levels** (set via `LOG_LEVEL` di `.env`):
 - `DEBUG` — semua detail (termasuk auth checks)
-- `INFO` — operasi normal (join, command, reconnect)
+- `INFO` — operasi normal (join, reconnect, voter)
 - `WARN` — hal yang perlu perhatian (disconnect, failed auth)
 - `ERROR` — error yang perlu ditangani
 
@@ -102,7 +88,6 @@ Contoh output:
 │   ├── config.js     # Konfigurasi & validasi
 │   ├── logger.js     # Logging system
 │   ├── voice.js      # Voice channel management
-│   ├── commands.js   # DM command handler
 │   └── voter.js      # Top.gg auto voter (TempVoice)
 ├── logs/             # Log files (auto-generated)
 ├── .env              # Konfigurasi (jangan commit!)

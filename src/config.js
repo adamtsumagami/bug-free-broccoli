@@ -36,9 +36,6 @@ function validate() {
   if (!config.token || config.token === "your_user_token_here") {
     errors.push("DISCORD_TOKEN belum di-set. Isi di file .env atau environment variable.");
   }
-  if (!config.ownerId || config.ownerId === "your_discord_user_id") {
-    errors.push("OWNER_ID belum di-set. Isi di file .env atau environment variable.");
-  }
 
   const validLevels = ["DEBUG", "INFO", "WARN", "ERROR"];
   if (!validLevels.includes(config.logLevel)) {
