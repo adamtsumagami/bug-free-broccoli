@@ -40,23 +40,21 @@ const client = new Client({
 async function resolveAsset(client, appId, asset) {
   if (!asset || asset === "none" || asset === "false") return null;
 
-  // Discord CDN URL (attachments) didukung langsung secara native oleh Discord
-  if (
-    asset.startsWith("https://cdn.discordapp.com/") ||
-    asset.startsWith("https://media.discordapp.net/") ||
-    asset.startsWith("mp:")
-  ) {
-    return asset;
-  }
-
-  // External URL via proxy
+  // URL gambar (Discord CDN, atau URL publik lainnya) → konversi via getExternal
   if (asset.startsWith("http://") || asset.startsWith("https://")) {
     try {
-      const assets = await RichPresence.getExternal(client, appId, asset);
-      if (assets && assets[0]?.external_asset_path) {
-        return `mp:${assets[0].external_asset_path}`;
+      const result = await RichPresence.getExternal(client, appId, asset);
+      if (result && result[0]?.external_asset_path) {
+        return `mp:${result[0].external_asset_path}`;
       }
-    } catch {}
+    } catch (e) {
+      log.warn("RPC", `getExternal gagal untuk "${asset}": ${e.message}`);
+    }
+    return null;
+  }
+
+  // mp:external/... path (sudah di-resolve sebelumnya)
+  if (asset.startsWith("mp:")) {
     return asset;
   }
 
@@ -69,8 +67,8 @@ async function resolveAsset(client, appId, asset) {
   try {
     const res = await fetch(`https://discord.com/api/v9/oauth2/applications/${appId}/assets`);
     if (res.ok) {
-      const assets = await res.json();
-      const match = assets.find((a) => a.name.toLowerCase() === asset.toLowerCase());
+      const list = await res.json();
+      const match = list.find((a) => a.name.toLowerCase() === asset.toLowerCase());
       if (match) return match.id;
     }
   } catch {}
@@ -104,7 +102,9 @@ client.once("ready", async () => {
         const resolvedImage = await resolveAsset(client, config.activity.appId, imageVal);
         if (resolvedImage) {
           rpc.setAssetsLargeImage(resolvedImage);
-          log.info("RPC", `Large image: "${imageVal}" → "${resolvedImage}"`);
+          log.info("RPC", `Large image resolved: "${resolvedImage}"`);
+        } else {
+          log.warn("RPC", `Gagal resolve large image "${imageVal}". Logo dilewati agar activity tetap tampil.`);
         }
         if (config.activity.largeText) {
           rpc.setAssetsLargeText(config.activity.largeText);
@@ -112,6 +112,7 @@ client.once("ready", async () => {
       }
 
       client.user.setActivity(rpc);
+      client.user.setStatus("online");
       log.info("READY", `Rich Presence: ${config.activity.name} (${config.activity.appId})`);
     } catch (e) {
       log.warn("READY", `Rich Presence gagal: ${e.message}`, e.stack);
@@ -119,6 +120,7 @@ client.once("ready", async () => {
     }
   } else {
     client.user.setActivity(config.activity.name, { type: config.activity.type });
+    client.user.setStatus("online");
     log.info("READY", `Basic activity set: ${config.activity.type} ${config.activity.name}`);
   }
 
