@@ -40,16 +40,20 @@ const client = new Client({
 async function resolveAsset(client, appId, asset) {
   if (!asset || asset === "none" || asset === "false") return null;
 
-  // URL gambar (Discord CDN, atau URL publik lainnya) → konversi via getExternal
+  // URL → konversi via getExternal API (hanya untuk URL publik non-Discord)
   if (asset.startsWith("http://") || asset.startsWith("https://")) {
     try {
       const result = await RichPresence.getExternal(client, appId, asset);
       if (result && result[0]?.external_asset_path) {
-        return `mp:${result[0].external_asset_path}`;
+        const ext = result[0].external_asset_path;
+        // Pastikan hasilnya mp:external/... (satu-satunya format URL yg didukung RPC)
+        if (ext.startsWith("mp:")) return ext;
+        return ext.startsWith("external/") ? `mp:${ext}` : `mp:external/${ext}`;
       }
     } catch (e) {
       log.warn("RPC", `getExternal gagal untuk "${asset}": ${e.message}`);
     }
+    log.warn("RPC", `Tidak bisa resolve URL "${asset}". Gunakan nama asset dari Developer Portal (misal: "gta6").`);
     return null;
   }
 
