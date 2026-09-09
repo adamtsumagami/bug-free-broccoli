@@ -8,7 +8,6 @@ validate();
 const { Client, RichPresence }  = require("discord.js-selfbot-v13");
 const { createLogger }          = require("./src/logger");
 const { joinVC, handleVoiceStateUpdate, cleanup } = require("./src/voice");
-const { startVoter, stopVoter } = require("./src/voter");
 
 // ─── Init Logger ─────────────────────────────────────────────────────────────
 const log = createLogger(config.logLevel);
@@ -21,7 +20,6 @@ if (config.ownerId) {
 }
 log.info("BOOT", `Reconnect delay: ${config.reconnectDelay}ms`);
 log.info("BOOT", `Activity: ${config.activity.type} ${config.activity.name}`);
-log.info("BOOT", `Top.gg Voter: ${config.voter.enabled ? "Enabled (TempVoice)" : "Disabled"}`);
 if (config.voiceChannelId) {
   log.info("BOOT", `Auto-join VC: ${config.voiceChannelId}`);
 }
@@ -87,7 +85,7 @@ client.once("ready", async () => {
   log.info("READY", `Login sebagai: ${client.user.tag} (${client.user.id})`);
   log.info("READY", `Servers: ${client.guilds.cache.size}`);
 
-  // Set activity (Rich Presence jika RPC_APP_ID di-set, basic jika tidak)
+  // Set Rich Presence
   if (config.activity.appId) {
     try {
       const rpc = new RichPresence(client)
@@ -96,16 +94,17 @@ client.once("ready", async () => {
         .setName(config.activity.name)
         .setStartTimestamp(Date.now());
 
-      // Jangan set details kecuali didefinisikan secara eksplisit (agar tidak ada teks kecil di bawah nama game)
       if (config.activity.details) {
         rpc.setDetails(config.activity.details);
       }
 
+      // Resolve asset: nama asset → Snowflake ID, URL eksternal → mp:external/..., dll
       const imageVal = config.activity.largeImage;
       if (imageVal) {
         const resolvedImage = await resolveAsset(client, config.activity.appId, imageVal);
         if (resolvedImage) {
           rpc.setAssetsLargeImage(resolvedImage);
+          log.info("RPC", `Large image: "${imageVal}" → "${resolvedImage}"`);
         }
         if (config.activity.largeText) {
           rpc.setAssetsLargeText(config.activity.largeText);
@@ -113,7 +112,7 @@ client.once("ready", async () => {
       }
 
       client.user.setActivity(rpc);
-      log.info("READY", `Rich Presence set: ${config.activity.name} (appId: ${config.activity.appId}, icon: ${config.activity.largeImage})`);
+      log.info("READY", `Rich Presence: ${config.activity.name} (${config.activity.appId})`);
     } catch (e) {
       log.warn("READY", `Rich Presence gagal: ${e.message}`, e.stack);
       client.user.setActivity(config.activity.name, { type: config.activity.type });
@@ -133,9 +132,6 @@ client.once("ready", async () => {
   }
 
   log.separator("RUNNING");
-
-  // Mulai auto-voter top.gg
-  startVoter();
 });
 
 // ── Voice State Tracking ─────────────────────────────────────────────────────
@@ -174,8 +170,7 @@ function gracefulShutdown(signal) {
   log.info("SHUTDOWN", `Menerima signal: ${signal}`);
 
   cleanup();
-  stopVoter();
-  log.info("SHUTDOWN", "Voice & voter cleanup selesai.");
+  log.info("SHUTDOWN", "Voice cleanup selesai.");
 
   client.destroy();
   log.info("SHUTDOWN", "Client destroyed.");

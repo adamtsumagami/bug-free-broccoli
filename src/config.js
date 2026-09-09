@@ -25,11 +25,7 @@ const config = {
       return val || "gta6";
     })(),
     largeText: process.env.ACTIVITY_LARGE_TEXT || null,
-    details: process.env.ACTIVITY_DETAILS || null,
-  },
-  voter: {
-    enabled: process.env.TOPGG_VOTER_ENABLED === "true",
-    cookie: process.env.TOPGG_COOKIE || null,
+    details:   process.env.ACTIVITY_DETAILS || null,
   },
 };
 
