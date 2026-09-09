@@ -137,7 +137,7 @@ client.once("ready", async () => {
 // ── Voice State Tracking ─────────────────────────────────────────────────────
 client.on("voiceStateUpdate", (o, n) => handleVoiceStateUpdate(client, o, n));
 
-// ── Error Handling ───────────────────────────────────────────────────────────
+// ── Error & Connection Handling ──────────────────────────────────────────────
 client.on("error", (e) => {
   log.error("CLIENT", `Discord client error: ${e.message}`, e.stack);
 });
@@ -146,12 +146,34 @@ client.on("warn", (warning) => {
   log.warn("CLIENT", `Discord warning: ${warning}`);
 });
 
-client.on("disconnect", () => {
-  log.warn("CLIENT", "Client disconnected dari Discord.");
+client.on("disconnect", (event) => {
+  const code = event?.code ?? "unknown";
+  const reason = event?.reason ?? "tidak ada alasan";
+  log.warn("CLIENT", `WebSocket disconnected [code: ${code}]: ${reason}`);
 });
 
 client.on("reconnecting", () => {
   log.info("CLIENT", "Client mencoba reconnect ke Discord...");
+});
+
+client.on("invalidated", () => {
+  log.error("CLIENT", "Sesi Discord sudah tidak valid (invalidated). Token mungkin expired atau di-revoke.");
+});
+
+client.on("shardDisconnect", (event, shardId) => {
+  log.warn("CLIENT", `Shard ${shardId} disconnected [code: ${event.code}]: ${event.reason || "no reason"}`);
+});
+
+client.on("shardReconnecting", (shardId) => {
+  log.info("CLIENT", `Shard ${shardId} mencoba reconnect...`);
+});
+
+client.on("shardResume", (shardId, replayedEvents) => {
+  log.info("CLIENT", `Shard ${shardId} resumed (${replayedEvents} events replayed).`);
+});
+
+client.on("shardError", (error, shardId) => {
+  log.error("CLIENT", `Shard ${shardId} error: ${error.message}`, error.stack);
 });
 
 process.on("unhandledRejection", (e) => {
