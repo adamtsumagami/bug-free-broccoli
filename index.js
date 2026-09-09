@@ -192,8 +192,15 @@ process.on("uncaughtException", (e) => {
 });
 
 // ─── Graceful Shutdown ───────────────────────────────────────────────────────
+let isShuttingDown = false;
 
 function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    log.warn("SHUTDOWN", `Shutdown kedua diabaikan: ${signal}`);
+    return;
+  }
+  isShuttingDown = true;
+
   log.separator("SHUTDOWN");
   log.info("SHUTDOWN", `Menerima signal: ${signal}`);
 

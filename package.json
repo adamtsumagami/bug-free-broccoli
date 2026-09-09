@@ -4,6 +4,7 @@
   "description": "Discord AFK Selfbot — stay in voice channels with auto-reconnect",
   "main": "index.js",
   "scripts": {
+    "postinstall": "node scripts/patch-selfbot.js",
     "start": "node index.js"
   },
   "dependencies": {
