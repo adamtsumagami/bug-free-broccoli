@@ -8,9 +8,13 @@ require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 // ─── Validasi & Export Config ────────────────────────────────────────────────
 
 const config = {
-  token:          process.env.DISCORD_TOKEN       || null,
-  ownerId:        process.env.OWNER_ID            || null,
-  voiceChannelId: process.env.VOICE_CHANNEL_ID    || null,
+  token:          process.env.DISCORD_TOKEN    || null,
+  // Daftar owner ID yang boleh melihat info bot (comma-separated di .env)
+  ownerIds:       (process.env.OWNER_IDS || process.env.OWNER_ID || "")
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+  voiceChannelId: process.env.VOICE_CHANNEL_ID || null,
   voiceSelfMute:  process.env.VOICE_SELF_MUTE !== "false",
   voiceSelfDeaf:  process.env.VOICE_SELF_DEAF !== "false",
   reconnectDelay: parseInt(process.env.RECONNECT_DELAY_MS, 10) || 5000,

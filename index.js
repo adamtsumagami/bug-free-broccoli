@@ -15,8 +15,8 @@ const log = createLogger(config.logLevel);
 log.separator("STARTUP");
 log.info("BOOT", "AFK Selfbot starting...");
 log.info("BOOT", `Log level: ${config.logLevel}`);
-if (config.ownerId) {
-  log.info("BOOT", `Owner ID: ${config.ownerId}`);
+if (config.ownerIds.length > 0) {
+  log.info("BOOT", `Owner IDs: ${config.ownerIds.join(", ")}`);
 }
 log.info("BOOT", `Reconnect delay: ${config.reconnectDelay}ms`);
 log.info("BOOT", `Activity: ${config.activity.type} ${config.activity.name}`);
